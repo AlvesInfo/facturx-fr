@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "facturx-fr"
+version = "0.1.0"
+description = "Bibliothèque Python pour la facturation électronique française (Factur-X, UBL, CII) — conforme à la réforme sept. 2026"
+readme = "README.md"
+license = "LGPL-3.0-or-later"
+requires-python = ">=3.12"
+authors = [
+    { name = "Paulo", email = "contact@facturx-fr.dev" },
+]
+keywords = [
+    "factur-x",
+    "facturation",
+    "electronique",
+    "france",
+    "ubl",
+    "cii",
+    "pdp",
+    "e-invoicing",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "lxml>=4.9",
+    "factur-x>=3.0",
+    "httpx>=0.25",
+]
+
+[project.optional-dependencies]
+pdf = ["weasyprint>=60"]
+django = ["django>=4.2"]
+fastapi = ["fastapi>=0.100", "uvicorn"]
+celery = ["celery>=5.3", "redis"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+facturx-generate = "facturx_fr.cli:generate"
+facturx-validate = "facturx_fr.cli:validate"
+
+[project.urls]
+Homepage = "https://github.com/facturx-fr/facturx-fr"
+Documentation = "https://github.com/facturx-fr/facturx-fr/tree/main/docs"
+Repository = "https://github.com/facturx-fr/facturx-fr"
+Issues = "https://github.com/facturx-fr/facturx-fr/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/facturx_fr"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 99
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
