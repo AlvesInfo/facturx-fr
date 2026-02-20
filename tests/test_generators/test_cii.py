@@ -824,6 +824,400 @@ class TestGenerationResult:
         assert result.pdf_bytes is None
 
 
+class TestVATExemption:
+    """Tests de l'exonération TVA (exemption reason/code)."""
+
+    def test_exemption_reason_in_tax_summary(self) -> None:
+        """Vérifie ExemptionReason et ExemptionReasonCode dans ApplicableTradeTax."""
+        invoice = Invoice(
+            number="FA-EXON-001",
+            issue_date=date(2026, 9, 15),
+            seller=Party(
+                name="Sous-traitant BTP",
+                siren="111222333",
+                vat_number="FR11122233301",
+                address=Address(street="1 rue", city="Paris", postal_code="75001"),
+            ),
+            buyer=Party(
+                name="Entreprise Principale",
+                siren="444555666",
+                vat_number="FR44455566601",
+                address=Address(street="2 rue", city="Lyon", postal_code="69001"),
+            ),
+            lines=[
+                InvoiceLine(
+                    description="Travaux de plomberie",
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("5000.00"),
+                    vat_rate=Decimal("0"),
+                    vat_category=VATCategory.REVERSE_CHARGE,
+                    vat_exemption_reason=(
+                        "Autoliquidation — Article 283-2 nonies du CGI"
+                    ),
+                    vat_exemption_reason_code="vatex-eu-ae",
+                ),
+            ],
+            operation_category=OperationCategory.SERVICE,
+        )
+
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(invoice)
+        root = _parse(xml_bytes)
+
+        tax = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:ApplicableTradeTax",
+            NS,
+        )
+        assert tax is not None
+        assert tax.find("ram:CategoryCode", NS).text == "AE"
+
+        reason = tax.find("ram:ExemptionReason", NS)
+        assert reason is not None
+        assert "Autoliquidation" in reason.text
+
+        reason_code = tax.find("ram:ExemptionReasonCode", NS)
+        assert reason_code is not None
+        assert reason_code.text == "vatex-eu-ae"
+
+    def test_no_exemption_when_standard_rate(self, sample_invoice: Invoice) -> None:
+        """Vérifie l'absence d'ExemptionReason pour un taux standard."""
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(sample_invoice)
+        root = _parse(xml_bytes)
+
+        tax = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:ApplicableTradeTax",
+            NS,
+        )
+        assert tax is not None
+        assert tax.find("ram:ExemptionReason", NS) is None
+        assert tax.find("ram:ExemptionReasonCode", NS) is None
+
+
+class TestBillingPeriod:
+    """Tests de la période de facturation (niveau facture et ligne)."""
+
+    def test_invoice_level_billing_period(self) -> None:
+        """Vérifie BillingSpecifiedPeriod au niveau settlement (BG-14)."""
+        invoice = Invoice(
+            number="FA-PERIOD-001",
+            issue_date=date(2026, 9, 15),
+            billing_period_start=date(2026, 8, 1),
+            billing_period_end=date(2026, 8, 31),
+            seller=Party(
+                name="Vendeur",
+                address=Address(street="1 rue", city="Paris", postal_code="75001"),
+            ),
+            buyer=Party(
+                name="Acheteur",
+                address=Address(street="2 rue", city="Lyon", postal_code="69001"),
+            ),
+            lines=[
+                InvoiceLine(
+                    description="Travaux août 2026",
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("10000.00"),
+                ),
+            ],
+            operation_category=OperationCategory.SERVICE,
+        )
+
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(invoice)
+        root = _parse(xml_bytes)
+
+        period = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:BillingSpecifiedPeriod",
+            NS,
+        )
+        assert period is not None
+
+        start = period.find("ram:StartDateTime/udt:DateTimeString", NS)
+        assert start is not None
+        assert start.text == "20260801"
+        assert start.get("format") == "102"
+
+        end = period.find("ram:EndDateTime/udt:DateTimeString", NS)
+        assert end is not None
+        assert end.text == "20260831"
+
+    def test_line_level_billing_period(self) -> None:
+        """Vérifie BillingSpecifiedPeriod au niveau ligne (BG-26)."""
+        invoice = Invoice(
+            number="FA-LINEPERIOD-001",
+            issue_date=date(2026, 9, 15),
+            seller=Party(
+                name="Vendeur",
+                address=Address(street="1 rue", city="Paris", postal_code="75001"),
+            ),
+            buyer=Party(
+                name="Acheteur",
+                address=Address(street="2 rue", city="Lyon", postal_code="69001"),
+            ),
+            lines=[
+                InvoiceLine(
+                    description="Travaux situation 1",
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("5000.00"),
+                    billing_period_start=date(2026, 7, 1),
+                    billing_period_end=date(2026, 7, 31),
+                ),
+            ],
+            operation_category=OperationCategory.SERVICE,
+        )
+
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(invoice)
+        root = _parse(xml_bytes)
+
+        line_period = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:IncludedSupplyChainTradeLineItem/"
+            "ram:SpecifiedLineTradeSettlement/"
+            "ram:BillingSpecifiedPeriod",
+            NS,
+        )
+        assert line_period is not None
+
+        start = line_period.find("ram:StartDateTime/udt:DateTimeString", NS)
+        assert start is not None
+        assert start.text == "20260701"
+
+        end = line_period.find("ram:EndDateTime/udt:DateTimeString", NS)
+        assert end is not None
+        assert end.text == "20260731"
+
+    def test_no_billing_period_by_default(self, sample_invoice: Invoice) -> None:
+        """Vérifie l'absence de BillingSpecifiedPeriod par défaut."""
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(sample_invoice)
+        root = _parse(xml_bytes)
+
+        period = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:BillingSpecifiedPeriod",
+            NS,
+        )
+        assert period is None
+
+
+class TestPrepaidAmount:
+    """Tests du montant prépayé (acomptes, retenue de garantie)."""
+
+    def test_prepaid_amount_and_due_payable(self) -> None:
+        """Vérifie TotalPrepaidAmount et DuePayableAmount avec acompte."""
+        invoice = Invoice(
+            number="FA-PREPAID-001",
+            issue_date=date(2026, 9, 15),
+            seller=Party(
+                name="Vendeur",
+                address=Address(street="1 rue", city="Paris", postal_code="75001"),
+            ),
+            buyer=Party(
+                name="Acheteur",
+                address=Address(street="2 rue", city="Lyon", postal_code="69001"),
+            ),
+            lines=[
+                InvoiceLine(
+                    description="Travaux",
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("10000.00"),
+                    vat_rate=Decimal("20.0"),
+                ),
+            ],
+            operation_category=OperationCategory.SERVICE,
+            prepaid_amount=Decimal("2400.00"),
+        )
+
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(invoice)
+        root = _parse(xml_bytes)
+
+        summation = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:SpecifiedTradeSettlementHeaderMonetarySummation",
+            NS,
+        )
+        assert summation is not None
+
+        # GrandTotal = 12000
+        assert summation.find("ram:GrandTotalAmount", NS).text == "12000.00"
+
+        # TotalPrepaidAmount = 2400
+        prepaid = summation.find("ram:TotalPrepaidAmount", NS)
+        assert prepaid is not None
+        assert prepaid.text == "2400.00"
+
+        # DuePayableAmount = 12000 - 2400 = 9600
+        assert summation.find("ram:DuePayableAmount", NS).text == "9600.00"
+
+    def test_no_prepaid_by_default(self, sample_invoice: Invoice) -> None:
+        """Vérifie l'absence de TotalPrepaidAmount par défaut."""
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(sample_invoice)
+        root = _parse(xml_bytes)
+
+        summation = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:SpecifiedTradeSettlementHeaderMonetarySummation",
+            NS,
+        )
+        assert summation.find("ram:TotalPrepaidAmount", NS) is None
+        # DuePayableAmount = GrandTotalAmount when no prepaid
+        assert (
+            summation.find("ram:DuePayableAmount", NS).text
+            == summation.find("ram:GrandTotalAmount", NS).text
+        )
+
+
+class TestPayeeParty:
+    """Tests du bénéficiaire du paiement (PayeeTradeParty BG-10)."""
+
+    def test_payee_trade_party(self) -> None:
+        """Vérifie PayeeTradeParty dans ApplicableHeaderTradeSettlement."""
+        invoice = Invoice(
+            number="FA-PAYEE-001",
+            issue_date=date(2026, 9, 15),
+            seller=Party(
+                name="Sous-traitant",
+                siren="111222333",
+                address=Address(street="1 rue", city="Paris", postal_code="75001"),
+            ),
+            buyer=Party(
+                name="Maître d'ouvrage",
+                siren="444555666",
+                address=Address(street="2 rue", city="Lyon", postal_code="69001"),
+            ),
+            payee=Party(
+                name="Factor Finance SA",
+                siren="777888999",
+                address=Address(
+                    street="10 rue de la Finance",
+                    city="Paris",
+                    postal_code="75008",
+                ),
+            ),
+            lines=[
+                InvoiceLine(
+                    description="Travaux",
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("10000.00"),
+                ),
+            ],
+            operation_category=OperationCategory.SERVICE,
+        )
+
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(invoice)
+        root = _parse(xml_bytes)
+
+        payee = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:PayeeTradeParty",
+            NS,
+        )
+        assert payee is not None
+        assert payee.find("ram:Name", NS).text == "Factor Finance SA"
+
+        siren = payee.find("ram:SpecifiedLegalOrganization/ram:ID", NS)
+        assert siren is not None
+        assert siren.text == "777888999"
+        assert siren.get("schemeID") == "0002"
+
+    def test_no_payee_by_default(self, sample_invoice: Invoice) -> None:
+        """Vérifie l'absence de PayeeTradeParty par défaut."""
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(sample_invoice)
+        root = _parse(xml_bytes)
+
+        payee = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:PayeeTradeParty",
+            NS,
+        )
+        assert payee is None
+
+
+class TestNegativeLines:
+    """Tests des lignes négatives (reprise d'acomptes, déductions)."""
+
+    def test_negative_quantity_line(self) -> None:
+        """Vérifie qu'une ligne avec quantité négative est correctement émise."""
+        invoice = Invoice(
+            number="FA-NEG-001",
+            issue_date=date(2026, 9, 15),
+            seller=Party(
+                name="Vendeur",
+                address=Address(street="1 rue", city="Paris", postal_code="75001"),
+            ),
+            buyer=Party(
+                name="Acheteur",
+                address=Address(street="2 rue", city="Lyon", postal_code="69001"),
+            ),
+            lines=[
+                InvoiceLine(
+                    description="Travaux",
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("10000.00"),
+                    vat_rate=Decimal("20.0"),
+                ),
+                InvoiceLine(
+                    description="Reprise acompte facture FA-2026-030",
+                    quantity=Decimal("-1"),
+                    unit_price=Decimal("2000.00"),
+                    vat_rate=Decimal("20.0"),
+                ),
+            ],
+            operation_category=OperationCategory.SERVICE,
+        )
+
+        gen = CIIGenerator()
+        xml_bytes = gen.generate_xml(invoice)
+        root = _parse(xml_bytes)
+
+        lines = root.findall(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:IncludedSupplyChainTradeLineItem",
+            NS,
+        )
+        assert len(lines) == 2
+
+        # Deuxième ligne : quantité négative
+        qty = lines[1].find(
+            "ram:SpecifiedLineTradeDelivery/ram:BilledQuantity", NS
+        )
+        assert qty.text == "-1"
+
+        # Total ligne = -2000
+        total = lines[1].find(
+            "ram:SpecifiedLineTradeSettlement/"
+            "ram:SpecifiedTradeSettlementLineMonetarySummation/"
+            "ram:LineTotalAmount",
+            NS,
+        )
+        assert total.text == "-2000.00"
+
+        # Total HT facture = 10000 - 2000 = 8000
+        summation = root.find(
+            "rsm:SupplyChainTradeTransaction/"
+            "ram:ApplicableHeaderTradeSettlement/"
+            "ram:SpecifiedTradeSettlementHeaderMonetarySummation",
+            NS,
+        )
+        assert summation.find("ram:LineTotalAmount", NS).text == "8000.00"
+
+
 class TestXSDValidation:
     """Validation XSD du XML généré via la lib factur-x."""
 

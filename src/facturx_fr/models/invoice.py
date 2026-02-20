@@ -40,13 +40,23 @@ class InvoiceLine(BaseModel):
         ),
     )
     description: str = Field(..., description="Désignation / Item description")
-    quantity: Decimal = Field(..., gt=0, description="Quantité / Quantity")
+    quantity: Decimal = Field(
+        ...,
+        description=(
+            "Quantité facturée (peut être négative pour reprise d'acomptes) / "
+            "Invoiced quantity (can be negative for advance reprise)"
+        ),
+    )
     unit: UnitOfMeasure = Field(
         default=UnitOfMeasure.UNIT,
         description="Unité de mesure UN/ECE Rec. 20 / Unit of measure",
     )
     unit_price: Decimal = Field(
-        ..., ge=0, description="Prix unitaire HT / Unit price excl. tax"
+        ...,
+        description=(
+            "Prix unitaire HT (peut être négatif pour lignes de déduction) / "
+            "Unit price excl. tax (can be negative for deduction lines)"
+        ),
     )
     vat_rate: Decimal = Field(
         default=Decimal("20.0"),
@@ -74,6 +84,34 @@ class InvoiceLine(BaseModel):
         default=None,
         ge=0,
         description="Montant de majoration / Charge amount",
+    )
+    vat_exemption_reason: str | None = Field(
+        default=None,
+        description=(
+            "Motif d'exonération TVA BT-121 (ex: 'Autoliquidation — "
+            "Article 283-2 nonies du CGI') / VAT exemption reason text"
+        ),
+    )
+    vat_exemption_reason_code: str | None = Field(
+        default=None,
+        description=(
+            "Code motif d'exonération TVA BT-120 (ex: 'vatex-eu-ae') / "
+            "VAT exemption reason code (VATEX code list)"
+        ),
+    )
+    billing_period_start: date | None = Field(
+        default=None,
+        description=(
+            "Début de la période de facturation BG-26 "
+            "(situations de travaux, services) / Billing period start date"
+        ),
+    )
+    billing_period_end: date | None = Field(
+        default=None,
+        description=(
+            "Fin de la période de facturation BG-26 / "
+            "Billing period end date"
+        ),
     )
     sub_lines: list["InvoiceLine"] | None = Field(
         default=None,
@@ -117,6 +155,7 @@ class TaxSummary(BaseModel):
     """Récapitulatif TVA par taux.
 
     FR: Regroupe les montants HT et TVA pour un taux donné.
+        Inclut le motif d'exonération si applicable (AE, E, Z, etc.).
     EN: Groups amounts excl. and incl. tax for a given rate.
     """
 
@@ -124,6 +163,14 @@ class TaxSummary(BaseModel):
     vat_rate: Decimal = Field(..., ge=0, description="Taux de TVA en % / VAT rate in %")
     taxable_amount: Decimal = Field(..., description="Base imposable HT / Taxable amount")
     tax_amount: Decimal = Field(..., description="Montant de TVA / Tax amount")
+    vat_exemption_reason: str | None = Field(
+        default=None,
+        description="Motif d'exonération TVA BT-121 / VAT exemption reason text",
+    )
+    vat_exemption_reason_code: str | None = Field(
+        default=None,
+        description="Code motif d'exonération TVA BT-120 / VAT exemption reason code",
+    )
 
 
 class Invoice(BaseModel):
@@ -210,6 +257,49 @@ class Invoice(BaseModel):
         description="Moyen de paiement / Payment means",
     )
 
+    # --- Montants prépayés / retenus ---
+    prepaid_amount: Decimal | None = Field(
+        default=None,
+        description=(
+            "Montant déjà payé / retenu (BT-113 : acomptes, retenue de garantie) / "
+            "Prepaid amount (advances, retention guarantee)"
+        ),
+    )
+
+    # --- Période de facturation (niveau facture) ---
+    billing_period_start: date | None = Field(
+        default=None,
+        description=(
+            "Début de la période de facturation BG-14 "
+            "(situations de travaux) / Billing period start date"
+        ),
+    )
+    billing_period_end: date | None = Field(
+        default=None,
+        description=(
+            "Fin de la période de facturation BG-14 / "
+            "Billing period end date"
+        ),
+    )
+
+    # --- Tiers (bénéficiaire, payeur) ---
+    payee: Party | None = Field(
+        default=None,
+        description=(
+            "Bénéficiaire du paiement si différent du vendeur BG-10 "
+            "(affacturage, centralisation trésorerie) / "
+            "Payee if different from seller"
+        ),
+    )
+    payer: Party | None = Field(
+        default=None,
+        description=(
+            "Payeur tiers EXTENDED-CTC-FR EXT-FR-FE-BG-02 "
+            "(paiement direct sous-traitance BTP) / "
+            "Third-party payer (EXTENDED-CTC-FR only)"
+        ),
+    )
+
     # --- Notes ---
     note: str | None = Field(
         default=None,
@@ -238,22 +328,53 @@ class Invoice(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def amount_due(self) -> Decimal:
+        """Montant à payer (TTC - acomptes/retenues) / Amount due for payment.
+
+        FR: Déduit le montant prépayé (acomptes, retenue de garantie) du TTC.
+        EN: Deducts prepaid amount (advances, retention guarantee) from total incl. tax.
+        """
+        total = self.total_incl_tax
+        if self.prepaid_amount:
+            total -= self.prepaid_amount
+        return total
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def tax_summaries(self) -> list[TaxSummary]:
         """Récapitulatifs TVA par taux / Tax summaries by rate."""
-        summaries: dict[tuple[VATCategory, Decimal], tuple[Decimal, Decimal]] = {}
+        summaries: dict[
+            tuple[VATCategory, Decimal],
+            tuple[Decimal, Decimal, str | None, str | None],
+        ] = {}
         for line in self.lines:
             key = (line.vat_category, line.vat_rate)
-            taxable, tax = summaries.get(key, (Decimal("0"), Decimal("0")))
-            summaries[key] = (
-                taxable + line.line_total_excl_tax,
-                tax + line.line_vat_amount,
-            )
+            existing = summaries.get(key)
+            if existing:
+                taxable, tax, reason, reason_code = existing
+                summaries[key] = (
+                    taxable + line.line_total_excl_tax,
+                    tax + line.line_vat_amount,
+                    reason or line.vat_exemption_reason,
+                    reason_code or line.vat_exemption_reason_code,
+                )
+            else:
+                summaries[key] = (
+                    line.line_total_excl_tax,
+                    line.line_vat_amount,
+                    line.vat_exemption_reason,
+                    line.vat_exemption_reason_code,
+                )
         return [
             TaxSummary(
                 vat_category=cat,
                 vat_rate=rate,
                 taxable_amount=taxable,
                 tax_amount=tax,
+                vat_exemption_reason=reason,
+                vat_exemption_reason_code=reason_code,
             )
-            for (cat, rate), (taxable, tax) in sorted(summaries.items())
+            for (cat, rate), (taxable, tax, reason, reason_code) in sorted(
+                summaries.items()
+            )
         ]

@@ -85,11 +85,13 @@ class UBLGenerator(BaseGenerator):
         self._credit_note = invoice.type_code == InvoiceTypeCode.CREDIT_NOTE
         root = self._build_root()
         self._build_header(root, invoice)
+        self._build_invoice_period(root, invoice)
         self._build_order_reference(root, invoice)
         self._build_billing_reference(root, invoice)
         self._build_contract_reference(root, invoice)
         self._build_supplier_party(root, invoice)
         self._build_customer_party(root, invoice)
+        self._build_payee_party(root, invoice)
         self._build_delivery(root, invoice)
         self._build_payment_means(root, invoice)
         self._build_payment_terms(root, invoice)
@@ -181,6 +183,22 @@ class UBLGenerator(BaseGenerator):
                 root, _cbc("BuyerReference")
             ).text = invoice.purchase_order_reference
 
+    def _build_invoice_period(
+        self, root: etree._Element, invoice: Invoice
+    ) -> None:
+        """Construit InvoicePeriod au niveau facture (BG-14)."""
+        if not invoice.billing_period_start and not invoice.billing_period_end:
+            return
+        period = etree.SubElement(root, _cac("InvoicePeriod"))
+        if invoice.billing_period_start:
+            etree.SubElement(
+                period, _cbc("StartDate")
+            ).text = _fmt_date(invoice.billing_period_start)
+        if invoice.billing_period_end:
+            etree.SubElement(
+                period, _cbc("EndDate")
+            ).text = _fmt_date(invoice.billing_period_end)
+
     def _build_order_reference(
         self, root: etree._Element, invoice: Invoice
     ) -> None:
@@ -231,9 +249,24 @@ class UBLGenerator(BaseGenerator):
         customer = etree.SubElement(root, _cac("AccountingCustomerParty"))
         self._build_party(customer, invoice.buyer)
 
+    def _build_payee_party(
+        self, root: etree._Element, invoice: Invoice
+    ) -> None:
+        """Construit PayeeParty (bénéficiaire si différent du vendeur)."""
+        if not invoice.payee:
+            return
+        payee_el = etree.SubElement(root, _cac("PayeeParty"))
+        self._build_party_contents(payee_el, invoice.payee)
+
     def _build_party(self, parent: etree._Element, party: Party) -> None:
         """Construit un élément Party avec nom, adresse, TVA et SIREN."""
         party_el = etree.SubElement(parent, _cac("Party"))
+        self._build_party_contents(party_el, party)
+
+    def _build_party_contents(
+        self, party_el: etree._Element, party: Party
+    ) -> None:
+        """Remplit le contenu d'un élément Party."""
 
         # PartyName
         party_name = etree.SubElement(party_el, _cac("PartyName"))
@@ -362,6 +395,14 @@ class UBLGenerator(BaseGenerator):
         etree.SubElement(tax_cat, _cbc("Percent")).text = _fmt_amount(
             summary.vat_rate
         )
+        if summary.vat_exemption_reason_code:
+            etree.SubElement(
+                tax_cat, _cbc("TaxExemptionReasonCode")
+            ).text = summary.vat_exemption_reason_code
+        if summary.vat_exemption_reason:
+            etree.SubElement(
+                tax_cat, _cbc("TaxExemptionReason")
+            ).text = summary.vat_exemption_reason
         tax_scheme = etree.SubElement(tax_cat, _cac("TaxScheme"))
         etree.SubElement(tax_scheme, _cbc("ID")).text = "VAT"
 
@@ -386,9 +427,14 @@ class UBLGenerator(BaseGenerator):
         tax_incl.set("currencyID", currency)
         tax_incl.text = _fmt_amount(invoice.total_incl_tax)
 
+        if invoice.prepaid_amount:
+            prepaid = etree.SubElement(monetary, _cbc("PrepaidAmount"))
+            prepaid.set("currencyID", currency)
+            prepaid.text = _fmt_amount(invoice.prepaid_amount)
+
         payable = etree.SubElement(monetary, _cbc("PayableAmount"))
         payable.set("currencyID", currency)
-        payable.text = _fmt_amount(invoice.total_incl_tax)
+        payable.text = _fmt_amount(invoice.amount_due)
 
     # --- Lignes de facture ---
 
@@ -417,6 +463,18 @@ class UBLGenerator(BaseGenerator):
         line_ext = etree.SubElement(line_el, _cbc("LineExtensionAmount"))
         line_ext.set("currencyID", currency)
         line_ext.text = _fmt_amount(line.line_total_excl_tax)
+
+        # InvoicePeriod (période de facturation de la ligne BG-26)
+        if line.billing_period_start or line.billing_period_end:
+            period = etree.SubElement(line_el, _cac("InvoicePeriod"))
+            if line.billing_period_start:
+                etree.SubElement(
+                    period, _cbc("StartDate")
+                ).text = _fmt_date(line.billing_period_start)
+            if line.billing_period_end:
+                etree.SubElement(
+                    period, _cbc("EndDate")
+                ).text = _fmt_date(line.billing_period_end)
 
         # Item
         item = etree.SubElement(line_el, _cac("Item"))

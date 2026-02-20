@@ -82,6 +82,12 @@ class VATCategory(StrEnum):
     NOT_SUBJECT = "O"
     """Non soumis / Not subject to VAT"""
 
+    IGIC = "L"
+    """IGIC (Canaries) / Canary Islands General Indirect Tax"""
+
+    IPSI = "M"
+    """IPSI (Ceuta et Melilla) / Tax for production, services and importation"""
+
 
 class UnitOfMeasure(StrEnum):
     """Code unité de mesure (UN/ECE Rec. 20).

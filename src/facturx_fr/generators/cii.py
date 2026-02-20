@@ -14,7 +14,7 @@ from lxml import etree
 from facturx_fr.generators.base import BaseGenerator, GenerationResult
 from facturx_fr.models.enums import OperationCategory
 from facturx_fr.models.invoice import Invoice, InvoiceLine, TaxSummary
-from facturx_fr.models.party import Address
+from facturx_fr.models.party import Address, Party
 from facturx_fr.models.payment import PaymentMeans
 
 # --- Namespaces CII D16B ---
@@ -215,6 +215,20 @@ class CIIGenerator(BaseGenerator):
             line.vat_rate
         )
 
+        # BillingSpecifiedPeriod (période de facturation de la ligne)
+        if line.billing_period_start or line.billing_period_end:
+            period = etree.SubElement(settlement, _ram("BillingSpecifiedPeriod"))
+            if line.billing_period_start:
+                start_dt = etree.SubElement(period, _ram("StartDateTime"))
+                dt_str = etree.SubElement(start_dt, _udt("DateTimeString"))
+                dt_str.set("format", "102")
+                dt_str.text = _fmt_date(line.billing_period_start)
+            if line.billing_period_end:
+                end_dt = etree.SubElement(period, _ram("EndDateTime"))
+                dt_str = etree.SubElement(end_dt, _udt("DateTimeString"))
+                dt_str.set("format", "102")
+                dt_str.text = _fmt_date(line.billing_period_end)
+
         summation = etree.SubElement(
             settlement, _ram("SpecifiedTradeSettlementLineMonetarySummation")
         )
@@ -328,6 +342,10 @@ class CIIGenerator(BaseGenerator):
             settlement, _ram("InvoiceCurrencyCode")
         ).text = invoice.currency
 
+        # PayeeTradeParty (bénéficiaire si différent du vendeur)
+        if invoice.payee:
+            self._build_trade_party(settlement, "PayeeTradeParty", invoice.payee)
+
         # SpecifiedTradeSettlementPaymentMeans
         if invoice.payment_means:
             self._build_payment_means(settlement, invoice.payment_means)
@@ -335,6 +353,20 @@ class CIIGenerator(BaseGenerator):
         # ApplicableTradeTax (un bloc par taux de TVA)
         for summary in invoice.tax_summaries:
             self._build_tax_summary(settlement, summary, invoice.vat_on_debits)
+
+        # BillingSpecifiedPeriod (période de facturation niveau facture)
+        if invoice.billing_period_start or invoice.billing_period_end:
+            period = etree.SubElement(settlement, _ram("BillingSpecifiedPeriod"))
+            if invoice.billing_period_start:
+                start_dt = etree.SubElement(period, _ram("StartDateTime"))
+                dt_str = etree.SubElement(start_dt, _udt("DateTimeString"))
+                dt_str.set("format", "102")
+                dt_str.text = _fmt_date(invoice.billing_period_start)
+            if invoice.billing_period_end:
+                end_dt = etree.SubElement(period, _ram("EndDateTime"))
+                dt_str = etree.SubElement(end_dt, _udt("DateTimeString"))
+                dt_str.set("format", "102")
+                dt_str.text = _fmt_date(invoice.billing_period_end)
 
         # SpecifiedTradePaymentTerms
         if invoice.payment_terms or invoice.due_date:
@@ -386,16 +418,26 @@ class CIIGenerator(BaseGenerator):
         summary: TaxSummary,
         vat_on_debits: bool,
     ) -> None:
-        """Construit un bloc ApplicableTradeTax du settlement."""
+        """Construit un bloc ApplicableTradeTax du settlement (ordre XSD respecté)."""
         tax = etree.SubElement(parent, _ram("ApplicableTradeTax"))
         etree.SubElement(tax, _ram("CalculatedAmount")).text = _fmt_amount(
             summary.tax_amount
         )
         etree.SubElement(tax, _ram("TypeCode")).text = "VAT"
+        # ExemptionReason (BT-121, après TypeCode)
+        if summary.vat_exemption_reason:
+            etree.SubElement(
+                tax, _ram("ExemptionReason")
+            ).text = summary.vat_exemption_reason
         etree.SubElement(tax, _ram("BasisAmount")).text = _fmt_amount(
             summary.taxable_amount
         )
         etree.SubElement(tax, _ram("CategoryCode")).text = str(summary.vat_category)
+        # ExemptionReasonCode (BT-120, après CategoryCode)
+        if summary.vat_exemption_reason_code:
+            etree.SubElement(
+                tax, _ram("ExemptionReasonCode")
+            ).text = summary.vat_exemption_reason_code
         if vat_on_debits:
             etree.SubElement(tax, _ram("DueDateTypeCode")).text = "5"
         etree.SubElement(tax, _ram("RateApplicablePercent")).text = _fmt_amount(
@@ -436,6 +478,10 @@ class CIIGenerator(BaseGenerator):
         etree.SubElement(summation, _ram("GrandTotalAmount")).text = _fmt_amount(
             invoice.total_incl_tax
         )
+        if invoice.prepaid_amount:
+            etree.SubElement(
+                summation, _ram("TotalPrepaidAmount")
+            ).text = _fmt_amount(invoice.prepaid_amount)
         etree.SubElement(summation, _ram("DuePayableAmount")).text = _fmt_amount(
-            invoice.total_incl_tax
+            invoice.amount_due
         )
