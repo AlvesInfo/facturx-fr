@@ -42,6 +42,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+schematron = ["saxonche>=12.0"]
 pdf = ["weasyprint>=60"]
 django = ["django>=4.2"]
 fastapi = ["fastapi>=0.100", "uvicorn"]
