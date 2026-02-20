@@ -264,6 +264,59 @@ class CDARRoleCode(StrEnum):
     """Portail Public de Facturation (concentrateur) / Public invoicing portal"""
 
 
+class VATRegime(StrEnum):
+    """Régime de TVA (détermine les fréquences de transmission e-reporting).
+
+    FR: Le régime de TVA du vendeur conditionne la fréquence de transmission
+        des données de transaction et de paiement au concentrateur.
+    EN: The seller's VAT regime determines the transmission frequency
+        for transaction and payment data to the concentrator.
+    """
+
+    REAL_NORMAL_MONTHLY = "real_normal_monthly"
+    """Réel normal — déclaration mensuelle / Real normal — monthly filing"""
+
+    REAL_NORMAL_QUARTERLY = "real_normal_quarterly"
+    """Réel normal — déclaration trimestrielle / Real normal — quarterly filing"""
+
+    SIMPLIFIED_REAL = "simplified_real"
+    """Réel simplifié / Simplified real"""
+
+    FRANCHISE = "franchise"
+    """Franchise en base de TVA / VAT franchise (exempt)"""
+
+
+class EReportingTransactionType(StrEnum):
+    """Type de transaction e-reporting.
+
+    FR: Catégorise les transactions hors e-invoicing soumises au e-reporting.
+    EN: Categorizes non e-invoicing transactions subject to e-reporting.
+    """
+
+    B2C_DOMESTIC = "b2c_domestic"
+    """Vente B2C domestique / Domestic B2C sale"""
+
+    B2B_INTRA_EU = "b2b_intra_eu"
+    """Intracommunautaire (LIC/AIC) / Intra-EU (IC supply/acquisition)"""
+
+    B2B_EXTRA_EU = "b2b_extra_eu"
+    """Hors UE (export/import) / Extra-EU (export/import)"""
+
+
+class EReportingTransmissionMode(StrEnum):
+    """Mode de transmission e-reporting.
+
+    FR: Mode de soumission des données au concentrateur via la PA.
+    EN: Data submission mode to the concentrator via the PA.
+    """
+
+    INDIVIDUAL = "individual"
+    """Transaction par transaction / Transaction by transaction"""
+
+    AGGREGATED = "aggregated"
+    """Totaux quotidiens par SIREN (B2C) / Daily totals per SIREN (B2C)"""
+
+
 class Currency(StrEnum):
     """Codes devise ISO 4217 courants.
 

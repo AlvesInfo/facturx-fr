@@ -13,8 +13,10 @@ from decimal import Decimal
 
 from facturx_fr.models.enums import InvoiceStatus
 from facturx_fr.models.invoice import Invoice
+from facturx_fr.ereporting.models import EReportingSubmission
 from facturx_fr.pdp.models import (
     DirectoryEntry,
+    EReportingSubmissionResponse,
     InvoiceSearchFilters,
     InvoiceSearchResponse,
     LifecycleResponse,
@@ -179,5 +181,58 @@ class BasePDP(metaclass=ABCMeta):
 
         Raises:
             PDPNotFoundError: Si le SIREN n'est pas trouvé dans l'annuaire.
+        """
+        ...
+
+    # --- E-reporting ---
+
+    @abstractmethod
+    async def submit_ereporting_transaction(
+        self, submission: EReportingSubmission
+    ) -> EReportingSubmissionResponse:
+        """Soumet des données de transaction e-reporting à la PA.
+
+        Args:
+            submission: La soumission préparée (transaction ou agrégat).
+
+        Returns:
+            Réponse de soumission avec statut de traitement.
+
+        Raises:
+            PDPValidationError: Si les données sont non conformes.
+        """
+        ...
+
+    @abstractmethod
+    async def submit_ereporting_payment(
+        self, submission: EReportingSubmission
+    ) -> EReportingSubmissionResponse:
+        """Soumet des données de paiement e-reporting à la PA.
+
+        Args:
+            submission: La soumission préparée (données de paiement).
+
+        Returns:
+            Réponse de soumission avec statut de traitement.
+
+        Raises:
+            PDPValidationError: Si les données sont non conformes.
+        """
+        ...
+
+    @abstractmethod
+    async def get_ereporting_status(
+        self, submission_id: str
+    ) -> EReportingSubmissionResponse:
+        """Récupère le statut d'une soumission e-reporting.
+
+        Args:
+            submission_id: L'identifiant de la soumission.
+
+        Returns:
+            Réponse avec le statut courant de la soumission.
+
+        Raises:
+            PDPNotFoundError: Si la soumission n'existe pas.
         """
         ...

@@ -5,12 +5,19 @@ from decimal import Decimal
 
 import pytest
 
-from facturx_fr.models.enums import InvoiceStatus
+from facturx_fr.ereporting.models import EReportingSubmission, PaymentData, TransactionData
+from facturx_fr.models.enums import (
+    EReportingTransactionType,
+    EReportingTransmissionMode,
+    InvoiceStatus,
+    OperationCategory,
+)
 from facturx_fr.models.invoice import Invoice
 from facturx_fr.pdp.connectors.memory import MemoryPDP
 from facturx_fr.pdp.errors import PDPNotFoundError
 from facturx_fr.pdp.models import (
     DirectoryEntry,
+    EReportingSubmissionResponse,
     InvoiceSearchFilters,
     InvoiceSearchResponse,
     LifecycleResponse,
@@ -516,3 +523,70 @@ class TestFullFlow:
             InvoiceSearchFilters(direction="received")
         )
         assert received.total_count == 1
+
+
+class TestEReportingSubmission:
+    """Tests des méthodes e-reporting du connecteur mémoire."""
+
+    async def test_submit_transaction(self, memory_pdp: MemoryPDP) -> None:
+        txn = TransactionData(
+            seller_siren="123456789",
+            transaction_type=EReportingTransactionType.B2C_DOMESTIC,
+            invoice_date=date(2026, 9, 15),
+            invoice_number="FA-B2C-001",
+            operation_category=OperationCategory.DELIVERY,
+            total_excl_tax=Decimal("100.00"),
+            vat_amount=Decimal("20.00"),
+            vat_rate=Decimal("20.0"),
+        )
+        submission = EReportingSubmission(
+            transmission_mode=EReportingTransmissionMode.INDIVIDUAL,
+            transaction_data=txn,
+        )
+        response = await memory_pdp.submit_ereporting_transaction(submission)
+        assert isinstance(response, EReportingSubmissionResponse)
+        assert response.status == "accepted"
+        assert response.submission_id.startswith("MEM-")
+
+    async def test_submit_payment(self, memory_pdp: MemoryPDP) -> None:
+        payment = PaymentData(
+            seller_siren="123456789",
+            cashing_date=date(2026, 10, 1),
+            cashed_amount=Decimal("120.00"),
+            invoice_reference="FA-2026-042",
+        )
+        submission = EReportingSubmission(
+            transmission_mode=EReportingTransmissionMode.INDIVIDUAL,
+            payment_data=payment,
+        )
+        response = await memory_pdp.submit_ereporting_payment(submission)
+        assert isinstance(response, EReportingSubmissionResponse)
+        assert response.status == "accepted"
+
+    async def test_get_ereporting_status(self, memory_pdp: MemoryPDP) -> None:
+        txn = TransactionData(
+            seller_siren="123456789",
+            transaction_type=EReportingTransactionType.B2C_DOMESTIC,
+            invoice_date=date(2026, 9, 15),
+            operation_category=OperationCategory.DELIVERY,
+            total_excl_tax=Decimal("100.00"),
+            vat_rate=Decimal("20.0"),
+        )
+        submission = EReportingSubmission(
+            transmission_mode=EReportingTransmissionMode.INDIVIDUAL,
+            transaction_data=txn,
+        )
+        submit_response = await memory_pdp.submit_ereporting_transaction(submission)
+
+        status_response = await memory_pdp.get_ereporting_status(
+            submit_response.submission_id
+        )
+        assert isinstance(status_response, EReportingSubmissionResponse)
+        assert status_response.status == "accepted"
+        assert status_response.submission_id == submit_response.submission_id
+
+    async def test_get_ereporting_status_unknown_id(
+        self, memory_pdp: MemoryPDP
+    ) -> None:
+        with pytest.raises(PDPNotFoundError, match="introuvable"):
+            await memory_pdp.get_ereporting_status("UNKNOWN-ID")

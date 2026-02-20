@@ -124,6 +124,22 @@ class InvoiceSearchResponse(BaseModel):
     page_size: int
 
 
+class EReportingSubmissionResponse(BaseModel):
+    """Réponse à la soumission de données e-reporting à une PA.
+
+    FR: Contient l'identifiant de la soumission, le statut de traitement
+        et les éventuelles erreurs retournées par la PA.
+    EN: Contains the submission ID, processing status and any errors
+        returned by the PA.
+    """
+
+    submission_id: str
+    status: Literal["accepted", "rejected", "pending"]
+    submitted_at: datetime
+    errors: list[str] | None = None
+    raw_response: dict | None = None
+
+
 class DirectoryEntry(BaseModel):
     """Entrée de l'annuaire central (SIREN -> PA de réception).
 

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
+from facturx_fr.ereporting.models import EReportingSubmission
 from facturx_fr.lifecycle.manager import LifecycleManager
 from facturx_fr.models.enums import InvoiceStatus
 from facturx_fr.models.invoice import Invoice
@@ -21,6 +22,7 @@ from facturx_fr.pdp.base import BasePDP
 from facturx_fr.pdp.errors import PDPNotFoundError
 from facturx_fr.pdp.models import (
     DirectoryEntry,
+    EReportingSubmissionResponse,
     InvoiceSearchFilters,
     InvoiceSearchResponse,
     InvoiceSearchResult,
@@ -52,6 +54,16 @@ class _StoredInvoice:
         )
 
 
+@dataclass
+class _StoredEReporting:
+    """Soumission e-reporting stockée en mémoire."""
+
+    submission_id: str
+    submission: EReportingSubmission
+    status: Literal["accepted", "rejected", "pending"]
+    submitted_at: datetime
+
+
 class MemoryPDP(BasePDP):
     """Connecteur PDP en mémoire pour les tests et le développement.
 
@@ -64,6 +76,7 @@ class MemoryPDP(BasePDP):
     def __init__(self, **kwargs: object) -> None:
         super().__init__(api_key="memory", environment="test")
         self._invoices: dict[str, _StoredInvoice] = {}
+        self._ereporting: dict[str, _StoredEReporting] = {}
         self._directory: dict[str, DirectoryEntry] = {}
         self._counter: int = 0
 
@@ -245,6 +258,65 @@ class MemoryPDP(BasePDP):
             msg = f"SIREN introuvable dans l'annuaire : {siren}"
             raise PDPNotFoundError(msg)
         return entry
+
+    # --- E-reporting ---
+
+    async def submit_ereporting_transaction(
+        self, submission: EReportingSubmission
+    ) -> EReportingSubmissionResponse:
+        """Soumet des données de transaction e-reporting (stockage en mémoire)."""
+        submission_id = self._next_id()
+        now = datetime.now(timezone.utc)
+
+        stored = _StoredEReporting(
+            submission_id=submission_id,
+            submission=submission,
+            status="accepted",
+            submitted_at=now,
+        )
+        self._ereporting[submission_id] = stored
+
+        return EReportingSubmissionResponse(
+            submission_id=submission_id,
+            status="accepted",
+            submitted_at=now,
+        )
+
+    async def submit_ereporting_payment(
+        self, submission: EReportingSubmission
+    ) -> EReportingSubmissionResponse:
+        """Soumet des données de paiement e-reporting (stockage en mémoire)."""
+        submission_id = self._next_id()
+        now = datetime.now(timezone.utc)
+
+        stored = _StoredEReporting(
+            submission_id=submission_id,
+            submission=submission,
+            status="accepted",
+            submitted_at=now,
+        )
+        self._ereporting[submission_id] = stored
+
+        return EReportingSubmissionResponse(
+            submission_id=submission_id,
+            status="accepted",
+            submitted_at=now,
+        )
+
+    async def get_ereporting_status(
+        self, submission_id: str
+    ) -> EReportingSubmissionResponse:
+        """Récupère le statut d'une soumission e-reporting."""
+        stored = self._ereporting.get(submission_id)
+        if stored is None:
+            msg = f"Soumission e-reporting introuvable : {submission_id}"
+            raise PDPNotFoundError(msg)
+
+        return EReportingSubmissionResponse(
+            submission_id=stored.submission_id,
+            status=stored.status,
+            submitted_at=stored.submitted_at,
+        )
 
     # --- Méthodes utilitaires (propres au connecteur mémoire) ---
 

@@ -16,6 +16,7 @@ from facturx_fr.pdp.errors import (
 )
 from facturx_fr.pdp.models import (
     DirectoryEntry,
+    EReportingSubmissionResponse,
     InvoiceSearchFilters,
     InvoiceSearchResponse,
     InvoiceSearchResult,
@@ -28,6 +29,7 @@ from facturx_fr.pdp.models import (
 __all__ = [
     "BasePDP",
     "DirectoryEntry",
+    "EReportingSubmissionResponse",
     "InvoiceSearchFilters",
     "InvoiceSearchResponse",
     "InvoiceSearchResult",
