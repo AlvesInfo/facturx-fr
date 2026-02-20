@@ -224,6 +224,46 @@ class InvoiceStatus(StrEnum):
     """Facture complétée après suspension / Completed after suspension"""
 
 
+class StatusCategory(StrEnum):
+    """Catégorie du statut de cycle de vie (XP Z12-012).
+
+    FR: Indique si le statut est obligatoire (transmis au CDD/PPF)
+        ou recommandé (entre les parties uniquement).
+    EN: Indicates whether the status is mandatory (sent to CDD/PPF)
+        or recommended (between parties only).
+    """
+
+    MANDATORY = "mandatory"
+    """Statut obligatoire, transmis au CDD/PPF pour la DGFiP"""
+
+    RECOMMENDED = "recommended"
+    """Statut recommandé, échangé entre les parties uniquement"""
+
+
+class CDARRoleCode(StrEnum):
+    """Rôles des parties dans un message CDAR (XP Z12-012).
+
+    FR: Codes de rôle utilisés dans les messages de cycle de vie
+        (Cross-industry Document and Application Response).
+    EN: Role codes used in lifecycle messages (CDAR).
+    """
+
+    BUYER = "BY"
+    """Acheteur / Buyer"""
+
+    SELLER = "SE"
+    """Vendeur / Seller"""
+
+    FACTOR = "DL"
+    """Affactureur / Factor"""
+
+    PLATFORM = "WK"
+    """Plateforme agréée (PA) / Certified platform"""
+
+    PPF = "DFH"
+    """Portail Public de Facturation (concentrateur) / Public invoicing portal"""
+
+
 class Currency(StrEnum):
     """Codes devise ISO 4217 courants.
 
