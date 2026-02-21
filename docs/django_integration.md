@@ -1,6 +1,6 @@
 # Intégration Django
 
-> **Note** : l'intégration Django est en cours de développement. Les fichiers dans `facturx_fr.contrib.django` sont des stubs. Ce guide décrit l'architecture recommandée et les patterns à suivre pour intégrer `facturx-fr` dans un projet Django.
+> **Note** : l'intégration Django est en cours de développement. Les fichiers dans `facturx_fr.contrib.django` sont des stubs. Ce guide décrit l'architecture recommandée et les patterns à suivre pour intégrer `facturx-fr` dans un projet Django 5.2+ (LTS).
 
 ## Installation
 
@@ -28,8 +28,8 @@ Connecteur PDP (async, via Celery)
 # invoices/models.py
 
 from django.db import models
+from django.db.models import Q
 from decimal import Decimal
-from datetime import date
 
 from facturx_fr.models import Invoice as PydanticInvoice, InvoiceLine, Party, Address
 from facturx_fr.models.payment import PaymentTerms, PaymentMeans, BankAccount
@@ -38,7 +38,6 @@ from facturx_fr.models.enums import (
     OperationCategory,
     VATCategory,
     PaymentMeansCode,
-    InvoiceStatus,
 )
 
 
@@ -63,8 +62,9 @@ class Invoice(models.Model):
     number = models.CharField(max_length=50, unique=True)
     issue_date = models.DateField()
     due_date = models.DateField(null=True, blank=True)
-    type_code = models.CharField(max_length=3, default="380")
-    currency = models.CharField(max_length=3, default="EUR")
+    # db_default (Django 5.0+) : la valeur par défaut est gérée côté DB
+    type_code = models.CharField(max_length=3, db_default="380")
+    currency = models.CharField(max_length=3, db_default="EUR")
     operation_category = models.CharField(
         max_length=10,
         choices=OperationCategoryChoices.choices,
@@ -94,7 +94,7 @@ class Invoice(models.Model):
     status = models.CharField(
         max_length=10,
         choices=StatusChoices.choices,
-        default=StatusChoices.DRAFT,
+        db_default="draft",
     )
     pdp_invoice_id = models.CharField(max_length=100, blank=True)
 
@@ -105,6 +105,23 @@ class Invoice(models.Model):
     # Métadonnées
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(seller_siren__regex=r"^\d{9}$"),
+                name="invoice_seller_siren_format",
+            ),
+            models.CheckConstraint(
+                condition=Q(buyer_siren__regex=r"^\d{9}$"),
+                name="invoice_buyer_siren_format",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "issue_date"]),
+            models.Index(fields=["seller_siren"]),
+            models.Index(fields=["buyer_siren"]),
+        ]
 
     def __str__(self):
         return f"{self.number} — {self.buyer_name}"
@@ -163,11 +180,17 @@ class InvoiceLine(models.Model):
     description = models.CharField(max_length=500)
     quantity = models.DecimalField(max_digits=12, decimal_places=4)
     unit_price = models.DecimalField(max_digits=12, decimal_places=4)
-    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("20.0"))
-    vat_category = models.CharField(max_length=2, default="S")
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, db_default=Decimal("20.0"))
+    vat_category = models.CharField(max_length=2, db_default="S")
 
     class Meta:
         ordering = ["line_number"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity__isnull=False),
+                name="line_quantity_not_null",
+            ),
+        ]
 
     def to_pydantic(self) -> InvoiceLine:
         """Convertit en modèle Pydantic."""
@@ -182,6 +205,8 @@ class InvoiceLine(models.Model):
             vat_category=VATCategory(self.vat_category),
         )
 ```
+
+> **Note Django 5.x** : `db_default` (introduit dans Django 5.0) permet de définir les valeurs par défaut côté base de données plutôt que côté Python. Cela garantit la cohérence même pour les insertions directes en SQL. `CheckConstraint(condition=...)` utilise la syntaxe Django 5.1+ (le paramètre `check` est déprécié au profit de `condition`).
 
 ## Vue/API pour la génération et le dépôt
 
@@ -421,6 +446,8 @@ urlpatterns = [
 ```
 
 ## Configuration Django
+
+Requiert **Django 5.2+** (LTS).
 
 ```python
 # settings.py

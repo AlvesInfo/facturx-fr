@@ -43,8 +43,8 @@ dependencies = [
 
 [project.optional-dependencies]
 schematron = ["saxonche>=12.0"]
-pdf = ["weasyprint>=60"]
-django = ["django>=4.2"]
+pdf = ["weasyprint>=68.0"]
+django = ["django>=5.2"]
 fastapi = ["fastapi>=0.100", "uvicorn"]
 celery = ["celery>=5.3", "redis"]
 dev = [
