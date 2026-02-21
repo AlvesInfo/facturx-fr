@@ -92,9 +92,9 @@ print(f"Facture {invoice.number} — Total TTC : {invoice.total_incl_tax} EUR")
 
 | Format    | Type              | Standard     | Statut       |
 |-----------|-------------------|--------------|--------------|
-| Factur-X  | PDF/A-3 + XML CII | EN 16931     | En cours     |
-| UBL       | XML pur           | OASIS UBL    | Planifié     |
-| CII       | XML pur           | UN/CEFACT    | Planifié     |
+| Factur-X  | PDF/A-3 + XML CII | EN 16931     | Implémenté   |
+| UBL       | XML pur           | OASIS UBL    | Implémenté   |
+| CII       | XML pur           | UN/CEFACT    | Implémenté   |
 
 ## Documentation
 
