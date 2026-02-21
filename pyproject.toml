@@ -50,6 +50,7 @@ celery = ["celery>=5.3", "redis"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio",
+    "pytest-django",
     "ruff",
     "mypy",
 ]
