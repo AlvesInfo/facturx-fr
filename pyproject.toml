@@ -51,8 +51,10 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio",
     "pytest-django",
+    "django>=5.2",
     "ruff",
     "mypy",
+    "saxonche>=12.0",
 ]
 
 [project.scripts]

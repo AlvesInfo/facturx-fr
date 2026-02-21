@@ -322,11 +322,13 @@ celery = [
     { name = "redis" },
 ]
 dev = [
+    { name = "django" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-django" },
     { name = "ruff" },
+    { name = "saxonche" },
 ]
 django = [
     { name = "django" },
@@ -345,6 +347,7 @@ schematron = [
 [package.metadata]
 requires-dist = [
     { name = "celery", marker = "extra == 'celery'", specifier = ">=5.3" },
+    { name = "django", marker = "extra == 'dev'", specifier = ">=5.2" },
     { name = "django", marker = "extra == 'django'", specifier = ">=5.2" },
     { name = "factur-x", specifier = ">=3.0" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.100" },
@@ -357,6 +360,7 @@ requires-dist = [
     { name = "pytest-django", marker = "extra == 'dev'" },
     { name = "redis", marker = "extra == 'celery'" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "saxonche", marker = "extra == 'dev'", specifier = ">=12.0" },
     { name = "saxonche", marker = "extra == 'schematron'", specifier = ">=12.0" },
     { name = "uvicorn", marker = "extra == 'fastapi'" },
     { name = "weasyprint", marker = "extra == 'pdf'", specifier = ">=68.0" },
