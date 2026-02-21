@@ -107,7 +107,7 @@ def sample_pydantic_invoice() -> PydanticInvoice:
 
 
 @pytest.fixture
-def sample_invoice(db, sample_pydantic_invoice) -> "Invoice":
+def sample_invoice(db, sample_pydantic_invoice):
     """Fixture : facture Django sauvée en base (avec lignes)."""
     from facturx_fr.contrib.django.models import Invoice
 

@@ -69,9 +69,8 @@ def validate_xml(
 def _resolve_profile(xml_bytes: bytes) -> str:
     """Résout le profil depuis le XML (pour l'auto-détection)."""
     try:
-        from lxml import etree
-
         from facturx import get_level
+        from lxml import etree
 
         doc = etree.fromstring(xml_bytes)
         return get_level(doc, flavor="factur-x").lower()

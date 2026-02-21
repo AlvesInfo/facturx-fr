@@ -19,7 +19,6 @@ from facturx_fr.models.enums import (
     InvoiceTypeCode,
     OperationCategory,
     UnitOfMeasure,
-    VATCategory,
 )
 
 try:

@@ -17,7 +17,6 @@ from facturx_fr.generators.ubl import (
     CBC,
     CN_NS,
     INV_NS,
-    PROFILE_URNS,
     UBLGenerator,
 )
 from facturx_fr.models import (

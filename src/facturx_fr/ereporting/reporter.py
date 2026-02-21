@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 
 from facturx_fr.ereporting.errors import (
@@ -29,7 +29,6 @@ from facturx_fr.ereporting.models import (
 from facturx_fr.models.enums import (
     EReportingTransactionType,
     EReportingTransmissionMode,
-    OperationCategory,
     VATRegime,
 )
 from facturx_fr.models.invoice import Invoice
@@ -342,7 +341,6 @@ class EReporter:
         """Prochaine échéance décadaire : 10, 20 ou dernier jour du mois."""
         year = reference_date.year
         month = reference_date.month
-        day = reference_date.day
         last_day = calendar.monthrange(year, month)[1]
 
         # Dates candidates dans le mois courant

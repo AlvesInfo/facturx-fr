@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 from lxml import etree
 
-from facturx_fr.generators.cii import CIIGenerator, PROFILE_URNS
+from facturx_fr.generators.cii import PROFILE_URNS, CIIGenerator
 from facturx_fr.models import (
     Address,
     BankAccount,

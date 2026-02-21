@@ -6,15 +6,15 @@ EN: Verifies the transition graph, business constraints,
     event history and status metadata.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 
 from facturx_fr.lifecycle.manager import (
+    STATUS_METADATA,
     TERMINAL_STATUSES,
     TRANSITIONS,
-    STATUS_METADATA,
     LifecycleManager,
 )
 from facturx_fr.models.enums import (
@@ -265,9 +265,9 @@ class TestEventHistory:
     def test_event_timestamp_default(self) -> None:
         """Vérifie que le timestamp est généré automatiquement."""
         mgr = LifecycleManager("FA-TEST-001")
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         mgr.transition(InvoiceStatus.EMISE)
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         event = mgr.history[0]
         assert before <= event.timestamp <= after
@@ -275,7 +275,7 @@ class TestEventHistory:
     def test_event_timestamp_custom(self) -> None:
         """Vérifie qu'on peut fournir un timestamp personnalisé."""
         mgr = LifecycleManager("FA-TEST-001")
-        custom_ts = datetime(2026, 9, 15, 10, 0, 0, tzinfo=timezone.utc)
+        custom_ts = datetime(2026, 9, 15, 10, 0, 0, tzinfo=UTC)
         mgr.transition(InvoiceStatus.EMISE, timestamp=custom_ts)
 
         assert mgr.history[0].timestamp == custom_ts

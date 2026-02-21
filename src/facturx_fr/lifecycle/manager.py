@@ -11,7 +11,7 @@ EN: Implements the full 14-status graph (5 mandatory + 10 recommended)
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import NamedTuple
 
@@ -241,7 +241,7 @@ class LifecycleManager:
             producer = metadata.default_producer
 
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(UTC)
 
         event = LifecycleEvent(
             timestamp=timestamp,

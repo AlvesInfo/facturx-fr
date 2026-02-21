@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from facturx_fr.contrib.django.models import Invoice, InvoiceLine, InvoiceStatusChoices
+from facturx_fr.contrib.django.models import Invoice, InvoiceLine
 from facturx_fr.models.enums import (
     InvoiceTypeCode,
     OperationCategory,

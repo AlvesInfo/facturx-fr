@@ -6,7 +6,7 @@ EN: Verifies CDARMessage creation, XML generation per UN/CEFACT D22B,
     XML parsing and the generate→parse roundtrip.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -15,13 +15,13 @@ from lxml import etree
 from facturx_fr.lifecycle.cdar import (
     CDAR_GUIDELINE_ID,
     CDAR_TYPE_CODE,
+    NS_RAM,
+    NS_RSM,
+    NS_UDT,
     CDARGenerator,
     CDARMessage,
     CDARParser,
     CDARParty,
-    NS_RAM,
-    NS_RSM,
-    NS_UDT,
 )
 from facturx_fr.models.enums import CDARRoleCode, InvoiceStatus
 
@@ -33,7 +33,7 @@ def sample_cdar_message() -> CDARMessage:
     """Message CDAR de test : statut APPROUVEE."""
     return CDARMessage(
         message_id="CDAR-2026-001",
-        issue_datetime=datetime(2026, 9, 16, 9, 30, 0, tzinfo=timezone.utc),
+        issue_datetime=datetime(2026, 9, 16, 9, 30, 0, tzinfo=UTC),
         status_code=InvoiceStatus.APPROUVEE,
         invoice_reference="FA-2026-042",
         sender=CDARParty(
@@ -56,7 +56,7 @@ def refusal_cdar_message() -> CDARMessage:
     """Message CDAR de test : statut REFUSEE avec motif."""
     return CDARMessage(
         message_id="CDAR-2026-002",
-        issue_datetime=datetime(2026, 9, 17, 14, 0, 0, tzinfo=timezone.utc),
+        issue_datetime=datetime(2026, 9, 17, 14, 0, 0, tzinfo=UTC),
         status_code=InvoiceStatus.REFUSEE,
         invoice_reference="FA-2026-043",
         sender=CDARParty(
@@ -95,7 +95,7 @@ class TestCDARMessage:
         """Vérifie la création d'un CDARMessage avec montant."""
         msg = CDARMessage(
             message_id="CDAR-2026-003",
-            issue_datetime=datetime(2026, 10, 15, tzinfo=timezone.utc),
+            issue_datetime=datetime(2026, 10, 15, tzinfo=UTC),
             status_code=InvoiceStatus.ENCAISSEE,
             invoice_reference="FA-2026-044",
             sender=CDARParty(
@@ -282,7 +282,7 @@ class TestCDARMultipleRecipients:
         """Vérifie plusieurs RecipientTradeParty (PA-E + PPF)."""
         msg = CDARMessage(
             message_id="CDAR-MULTI-001",
-            issue_datetime=datetime(2026, 9, 16, tzinfo=timezone.utc),
+            issue_datetime=datetime(2026, 9, 16, tzinfo=UTC),
             status_code=InvoiceStatus.DEPOSEE,
             invoice_reference="FA-2026-042",
             sender=CDARParty(
@@ -325,7 +325,7 @@ class TestCDAREncaissement:
         """Vérifie SpecifiedAmount pour un encaissement partiel."""
         msg = CDARMessage(
             message_id="CDAR-ENC-001",
-            issue_datetime=datetime(2026, 10, 15, tzinfo=timezone.utc),
+            issue_datetime=datetime(2026, 10, 15, tzinfo=UTC),
             status_code=InvoiceStatus.ENCAISSEE,
             invoice_reference="FA-2026-042",
             sender=CDARParty(
@@ -409,7 +409,7 @@ class TestCDARParser:
         """Vérifie le parsing du montant."""
         msg = CDARMessage(
             message_id="CDAR-AMT-001",
-            issue_datetime=datetime(2026, 10, 15, tzinfo=timezone.utc),
+            issue_datetime=datetime(2026, 10, 15, tzinfo=UTC),
             status_code=InvoiceStatus.ENCAISSEE,
             invoice_reference="FA-2026-042",
             sender=CDARParty(
@@ -444,10 +444,13 @@ class TestCDARParser:
         """Vérifie qu'un XML sans ExchangedDocument lève ValueError."""
         xml = (
             b'<?xml version="1.0"?>'
-            b'<rsm:CrossDomainAcknowledgementAndResponse'
-            b' xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossDomainAcknowledgementAndResponse:100"'
-            b' xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100">'
-            b'</rsm:CrossDomainAcknowledgementAndResponse>'
+            b"<rsm:CrossDomainAcknowledgementAndResponse"
+            b" xmlns:rsm="
+            b'"urn:un:unece:uncefact:data:standard:CrossDomainAcknowledgementAndResponse:100"'
+            b" xmlns:ram="
+            b'"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"'
+            b">"
+            b"</rsm:CrossDomainAcknowledgementAndResponse>"
         )
         parser = CDARParser()
         with pytest.raises(ValueError, match="ExchangedDocument manquant"):
@@ -488,7 +491,7 @@ class TestCDARRoundtrip:
         """Vérifie le roundtrip avec plusieurs destinataires."""
         msg = CDARMessage(
             message_id="CDAR-RT-MULTI",
-            issue_datetime=datetime(2026, 9, 16, tzinfo=timezone.utc),
+            issue_datetime=datetime(2026, 9, 16, tzinfo=UTC),
             status_code=InvoiceStatus.DEPOSEE,
             invoice_reference="FA-2026-050",
             sender=CDARParty(
@@ -525,7 +528,7 @@ class TestCDARRoundtrip:
         """Vérifie le roundtrip pour un encaissement avec montant."""
         msg = CDARMessage(
             message_id="CDAR-RT-ENC",
-            issue_datetime=datetime(2026, 10, 15, tzinfo=timezone.utc),
+            issue_datetime=datetime(2026, 10, 15, tzinfo=UTC),
             status_code=InvoiceStatus.ENCAISSEE,
             invoice_reference="FA-2026-042",
             sender=CDARParty(

@@ -6,9 +6,9 @@ EN: 14-status state machine (XP Z12-012) and CDAR messages (UN/CEFACT D22B).
 
 from facturx_fr.lifecycle.cdar import CDARGenerator, CDARMessage, CDARParser, CDARParty
 from facturx_fr.lifecycle.manager import (
+    STATUS_METADATA,
     TERMINAL_STATUSES,
     TRANSITIONS,
-    STATUS_METADATA,
     LifecycleManager,
     StatusInfo,
 )

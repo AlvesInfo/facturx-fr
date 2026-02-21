@@ -7,7 +7,7 @@ EN: Pydantic models for B2C, international B2B transactions,
     payment data and aggregates.
 """
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -272,7 +272,7 @@ class EReportingSubmission(BaseModel):
         description="Données de paiement / Payment data",
     )
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=timezone.utc),
+        default_factory=lambda: datetime.now(tz=UTC),
         description="Date de création / Creation timestamp",
     )
 

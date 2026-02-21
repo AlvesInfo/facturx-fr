@@ -11,9 +11,9 @@ EN: Defines the complete interface conforming to the AFNOR XP Z12-013
 from abc import ABCMeta, abstractmethod
 from decimal import Decimal
 
+from facturx_fr.ereporting.models import EReportingSubmission
 from facturx_fr.models.enums import InvoiceStatus
 from facturx_fr.models.invoice import Invoice
-from facturx_fr.ereporting.models import EReportingSubmission
 from facturx_fr.pdp.models import (
     DirectoryEntry,
     EReportingSubmissionResponse,

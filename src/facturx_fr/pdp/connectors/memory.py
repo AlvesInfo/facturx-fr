@@ -10,7 +10,7 @@ EN: Stores invoices in memory, simulates the full lifecycle via
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -103,7 +103,7 @@ class MemoryPDP(BasePDP):
     ) -> SubmissionResponse:
         """Soumet une facture (stockage en mémoire)."""
         invoice_id = self._next_id()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         lifecycle = LifecycleManager(
             invoice_reference=invoice.number,
@@ -246,7 +246,7 @@ class MemoryPDP(BasePDP):
         return StatusUpdateResponse(
             invoice_id=invoice_id,
             status=status,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
 
     # --- Consultation annuaire ---
@@ -266,7 +266,7 @@ class MemoryPDP(BasePDP):
     ) -> EReportingSubmissionResponse:
         """Soumet des données de transaction e-reporting (stockage en mémoire)."""
         submission_id = self._next_id()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         stored = _StoredEReporting(
             submission_id=submission_id,
@@ -287,7 +287,7 @@ class MemoryPDP(BasePDP):
     ) -> EReportingSubmissionResponse:
         """Soumet des données de paiement e-reporting (stockage en mémoire)."""
         submission_id = self._next_id()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         stored = _StoredEReporting(
             submission_id=submission_id,
@@ -331,7 +331,7 @@ class MemoryPDP(BasePDP):
             L'identifiant attribué à la facture reçue.
         """
         invoice_id = self._next_id()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         lifecycle = LifecycleManager(
             invoice_reference=invoice.number,

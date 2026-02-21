@@ -15,7 +15,6 @@ from facturx_fr.generators.base import BaseGenerator, GenerationResult
 from facturx_fr.models.enums import InvoiceTypeCode, OperationCategory
 from facturx_fr.models.invoice import Invoice, InvoiceLine, TaxSummary
 from facturx_fr.models.party import Address, Party
-from facturx_fr.models.payment import PaymentMeans
 
 # --- Namespaces UBL 2.1 ---
 INV_NS = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"

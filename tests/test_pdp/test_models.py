@@ -1,6 +1,6 @@
 """Tests pour les modèles de données PDP."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from facturx_fr.models.enums import InvoiceStatus
@@ -87,7 +87,7 @@ class TestStatusUpdateResponse:
     """Vérifie la réponse de mise à jour de statut."""
 
     def test_creation(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = StatusUpdateResponse(
             invoice_id="MEM-000001",
             status=InvoiceStatus.APPROUVEE,

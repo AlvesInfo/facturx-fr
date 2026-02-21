@@ -3,7 +3,7 @@
 import pytest
 from django.test import override_settings
 
-from facturx_fr.contrib.django.conf import DEFAULTS, get_pdp_instance, get_setting
+from facturx_fr.contrib.django.conf import get_pdp_instance, get_setting
 
 
 class TestGetSetting:
