@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from lxml import etree
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from importlib.resources.abc import Traversable
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ _PROFILE_FLAVOR_TO_XSLT: dict[tuple[str, str], str] = {
 
 _SUPPORTED_PROFILES = {"en16931"}
 
-# --- Namespace SVRL ---
-_SVRL_NS = "http://purl.oclc.org/dsdl/svrl"
+# --- Namespace SVRL (identifiant XML, pas une URL réseau) ---
+_SVRL_NS = "http://purl.oclc.org/dsdl/svrl"  # NOSONAR python:S5332
 
 
 def _detect_flavor(xml_bytes: bytes) -> str:
@@ -62,8 +62,10 @@ def _detect_flavor(xml_bytes: bytes) -> str:
     return flavor
 
 
-def _get_xslt_path(profile: str, flavor: str) -> Path:
-    """Résout le chemin du fichier XSLT bundlé pour un profil et flavor donnés.
+def _get_xslt_path(profile: str, flavor: str) -> Traversable:
+    """Résout la ressource XSLT bundlée pour un profil et flavor donnés.
+
+    Retourne un Traversable (importlib.resources) à utiliser avec as_file().
 
     Raises:
         ValueError: Si la combinaison profil/flavor n'est pas supportée.
@@ -77,12 +79,9 @@ def _get_xslt_path(profile: str, flavor: str) -> Path:
         )
         raise ValueError(msg)
 
-    xslt_resource = importlib.resources.files(
-        "facturx_fr.validators.schemas.schematrons.en16931"
-    ).joinpath(xslt_filename)
-
-    # importlib.resources renvoie un Traversable ; as_file() donne un Path
-    return xslt_resource  # type: ignore[return-value]
+    return importlib.resources.files("facturx_fr.validators.schemas.schematrons.en16931").joinpath(
+        xslt_filename
+    )
 
 
 def _parse_svrl(svrl_str: str) -> list[str]:
@@ -166,9 +165,7 @@ def validate_schematron(
     with importlib.resources.as_file(xslt_resource) as xslt_path:
         with PySaxonProcessor(license=False) as proc:
             xslt_proc = proc.new_xslt30_processor()
-            executable = xslt_proc.compile_stylesheet(
-                stylesheet_file=str(xslt_path)
-            )
+            executable = xslt_proc.compile_stylesheet(stylesheet_file=str(xslt_path))
             node = proc.parse_xml(xml_text=xml_str)
             svrl_str = executable.transform_to_string(xdm_node=node)
 

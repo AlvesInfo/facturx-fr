@@ -125,9 +125,7 @@ class CDARGenerator:
         guideline_id = etree.SubElement(guideline, f"{_RAM}ID")
         guideline_id.text = CDAR_GUIDELINE_ID
 
-    def _build_exchanged_document(
-        self, root: etree._Element, message: CDARMessage
-    ) -> None:
+    def _build_exchanged_document(self, root: etree._Element, message: CDARMessage) -> None:
         """Construit ExchangedDocument (ID, type, statut, date, parties)."""
         doc = etree.SubElement(root, f"{_RSM}ExchangedDocument")
 
@@ -152,9 +150,7 @@ class CDARGenerator:
         for recipient in message.recipients:
             self._build_party(doc, f"{_RAM}RecipientTradeParty", recipient)
 
-    def _build_party(
-        self, parent: etree._Element, tag: str, party: CDARParty
-    ) -> None:
+    def _build_party(self, parent: etree._Element, tag: str, party: CDARParty) -> None:
         """Construit un élément SenderTradeParty ou RecipientTradeParty."""
         elem = etree.SubElement(parent, tag)
 
@@ -165,9 +161,7 @@ class CDARGenerator:
         role_code = etree.SubElement(elem, f"{_RAM}RoleCode")
         role_code.text = party.role_code.value
 
-    def _build_acknowledgement_document(
-        self, root: etree._Element, message: CDARMessage
-    ) -> None:
+    def _build_acknowledgement_document(self, root: etree._Element, message: CDARMessage) -> None:
         """Construit AcknowledgementDocument (statut, motif, référence facture)."""
         ack = etree.SubElement(root, f"{_RSM}AcknowledgementDocument")
 
@@ -219,26 +213,19 @@ class CDARParser:
         ns = {"rsm": NS_RSM, "ram": NS_RAM, "udt": NS_UDT}
 
         # ExchangedDocument
-        doc = root.find("rsm:ExchangedDocument", ns)
-        if doc is None:
-            msg = "Élément ExchangedDocument manquant dans le XML CDAR."
-            raise ValueError(msg)
+        doc = self._find_required(root, "rsm:ExchangedDocument", ns)
 
         message_id = self._get_text(doc, "ram:ID", ns)
         status_code_text = self._get_text(doc, "ram:StatusCode", ns)
         status_code = InvoiceStatus(status_code_text)
 
-        dt_string = doc.find("ram:IssueDateTime/udt:DateTimeString", ns)
-        if dt_string is None:
-            msg = "Élément IssueDateTime manquant dans le XML CDAR."
-            raise ValueError(msg)
-        issue_datetime = datetime.strptime(dt_string.text, "%Y%m%d")
+        dt_string = self._find_required(
+            doc, "ram:IssueDateTime/udt:DateTimeString", ns, label="IssueDateTime"
+        )
+        issue_datetime = datetime.strptime(dt_string.text or "", "%Y%m%d")
 
         # Sender
-        sender_elem = doc.find("ram:SenderTradeParty", ns)
-        if sender_elem is None:
-            msg = "Élément SenderTradeParty manquant dans le XML CDAR."
-            raise ValueError(msg)
+        sender_elem = self._find_required(doc, "ram:SenderTradeParty", ns)
         sender = self._parse_party(sender_elem, ns)
 
         # Recipients
@@ -246,10 +233,7 @@ class CDARParser:
         recipients = [self._parse_party(r, ns) for r in recipient_elems]
 
         # AcknowledgementDocument
-        ack = root.find("rsm:AcknowledgementDocument", ns)
-        if ack is None:
-            msg = "Élément AcknowledgementDocument manquant dans le XML CDAR."
-            raise ValueError(msg)
+        ack = self._find_required(root, "rsm:AcknowledgementDocument", ns)
 
         reason = self._get_text_optional(ack, "ram:ReasonInformation", ns)
         reason_code = self._get_text_optional(ack, "ram:ReasonCode", ns)
@@ -257,10 +241,7 @@ class CDARParser:
         amount_text = self._get_text_optional(ack, "ram:SpecifiedAmount", ns)
         amount = Decimal(amount_text) if amount_text else None
 
-        ref_doc = ack.find("ram:ReferenceReferencedDocument", ns)
-        if ref_doc is None:
-            msg = "Élément ReferenceReferencedDocument manquant dans le XML CDAR."
-            raise ValueError(msg)
+        ref_doc = self._find_required(ack, "ram:ReferenceReferencedDocument", ns)
         invoice_reference = self._get_text(ref_doc, "ram:IssuerAssignedID", ns)
 
         return CDARMessage(
@@ -277,16 +258,39 @@ class CDARParser:
 
     def _parse_party(self, elem: etree._Element, ns: dict[str, str]) -> CDARParty:
         """Parse un élément TradeParty en CDARParty."""
-        id_elem = elem.find("ram:ID", ns)
-        if id_elem is None:
-            msg = "Élément ID manquant dans TradeParty."
-            raise ValueError(msg)
+        id_elem = self._find_required(elem, "ram:ID", ns, label="ID dans TradeParty")
 
         return CDARParty(
             identifier=id_elem.text or "",
             scheme_id=id_elem.get("schemeID", ""),
             role_code=CDARRoleCode(self._get_text(elem, "ram:RoleCode", ns)),
         )
+
+    @staticmethod
+    def _find_required(
+        parent: etree._Element,
+        path: str,
+        ns: dict[str, str],
+        *,
+        label: str | None = None,
+    ) -> etree._Element:
+        """Retourne le premier élément correspondant au chemin, ou lève ValueError.
+
+        Args:
+            parent: Élément parent dans lequel chercher.
+            path: Chemin ElementPath (avec préfixes de namespace).
+            ns: Mapping des préfixes de namespace.
+            label: Nom affiché dans le message d'erreur (défaut : nom local du chemin).
+
+        Raises:
+            ValueError: Si aucun élément ne correspond.
+        """
+        matches = parent.findall(path, ns)
+        if not matches:
+            name = label or path.rsplit(":", 1)[-1]
+            msg = f"Élément {name} manquant dans le XML CDAR."
+            raise ValueError(msg)
+        return matches[0]
 
     def _get_text(self, parent: etree._Element, path: str, ns: dict[str, str]) -> str:
         """Extrait le texte d'un élément obligatoire."""

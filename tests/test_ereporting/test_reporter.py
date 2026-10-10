@@ -60,14 +60,10 @@ class TestValidateTransaction:
         ereporter_monthly: EReporter,
         sample_international_transaction: TransactionData,
     ) -> None:
-        errors = ereporter_monthly.validate_transaction(
-            sample_international_transaction
-        )
+        errors = ereporter_monthly.validate_transaction(sample_international_transaction)
         assert errors == []
 
-    def test_missing_country_for_international(
-        self, ereporter_monthly: EReporter
-    ) -> None:
+    def test_missing_country_for_international(self, ereporter_monthly: EReporter) -> None:
         txn = TransactionData(
             seller_siren="123456789",
             transaction_type=EReportingTransactionType.B2B_INTRA_EU,
@@ -79,9 +75,7 @@ class TestValidateTransaction:
         errors = ereporter_monthly.validate_transaction(txn)
         assert any("pays obligatoire" in e for e in errors)
 
-    def test_country_fr_for_international(
-        self, ereporter_monthly: EReporter
-    ) -> None:
+    def test_country_fr_for_international(self, ereporter_monthly: EReporter) -> None:
         txn = TransactionData(
             seller_siren="123456789",
             transaction_type=EReportingTransactionType.B2B_EXTRA_EU,
@@ -117,9 +111,7 @@ class TestValidateTransaction:
         errors = ereporter_monthly.validate_transaction(txn)
         assert any("Date" in e or "date" in e for e in errors)
 
-    def test_with_period_instead_of_date(
-        self, ereporter_monthly: EReporter
-    ) -> None:
+    def test_with_period_instead_of_date(self, ereporter_monthly: EReporter) -> None:
         txn = TransactionData(
             seller_siren="123456789",
             transaction_type=EReportingTransactionType.B2C_DOMESTIC,
@@ -132,9 +124,7 @@ class TestValidateTransaction:
         errors = ereporter_monthly.validate_transaction(txn)
         assert errors == []
 
-    def test_missing_vat_rate_and_exemption(
-        self, ereporter_monthly: EReporter
-    ) -> None:
+    def test_missing_vat_rate_and_exemption(self, ereporter_monthly: EReporter) -> None:
         txn = TransactionData(
             seller_siren="123456789",
             transaction_type=EReportingTransactionType.B2C_DOMESTIC,
@@ -206,9 +196,7 @@ class TestValidateAggregated:
         errors = ereporter_monthly.validate_aggregated(agg)
         assert any("SIREN" in e for e in errors)
 
-    def test_empty_declaration_all_zeros(
-        self, ereporter_monthly: EReporter
-    ) -> None:
+    def test_empty_declaration_all_zeros(self, ereporter_monthly: EReporter) -> None:
         agg = AggregatedTransactionData(
             seller_siren="123456789",
             period_start=date(2026, 9, 1),
@@ -290,9 +278,7 @@ class TestPreparePayment:
 class TestTransactionFromInvoice:
     """Tests de conversion Invoice → TransactionData."""
 
-    def test_extraction(
-        self, ereporter_monthly: EReporter, sample_invoice: Invoice
-    ) -> None:
+    def test_extraction(self, ereporter_monthly: EReporter, sample_invoice: Invoice) -> None:
         txn = ereporter_monthly.transaction_from_invoice(
             sample_invoice,
             transaction_type=EReportingTransactionType.B2C_DOMESTIC,
@@ -382,11 +368,11 @@ class TestAggregateTransactions:
         assert agg.total_vat == Decimal("31.00")
 
     def test_empty_list(self, ereporter_monthly: EReporter) -> None:
+        period_start = date(2026, 9, 1)
+        period_end = date(2026, 9, 30)
         with pytest.raises(EReportingEmptyDeclarationError):
             ereporter_monthly.aggregate_transactions(
-                [],
-                period_start=date(2026, 9, 1),
-                period_end=date(2026, 9, 30),
+                [], period_start=period_start, period_end=period_end
             )
 
     def test_mixed_sirens(self, ereporter_monthly: EReporter) -> None:
@@ -408,11 +394,11 @@ class TestAggregateTransactions:
                 vat_rate=Decimal("20.0"),
             ),
         ]
+        period_start = date(2026, 9, 1)
+        period_end = date(2026, 9, 30)
         with pytest.raises(EReportingValidationError, match="même SIREN"):
             ereporter_monthly.aggregate_transactions(
-                transactions,
-                period_start=date(2026, 9, 1),
-                period_end=date(2026, 9, 30),
+                transactions, period_start=period_start, period_end=period_end
             )
 
 
@@ -453,52 +439,50 @@ class TestNextDeadlines:
 
     # --- Transactions : "tous les 10 jours" ---
 
-    def test_decadal_from_day_1(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 9, 1))
-        assert deadline == date(2026, 9, 10)
-
-    def test_decadal_from_day_10(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 9, 10))
-        assert deadline == date(2026, 9, 20)
-
-    def test_decadal_from_day_15(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 9, 15))
-        assert deadline == date(2026, 9, 20)
-
-    def test_decadal_from_day_20(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 9, 20))
-        assert deadline == date(2026, 9, 30)
-
-    def test_decadal_from_day_25(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 9, 25))
-        assert deadline == date(2026, 9, 30)
-
-    def test_decadal_from_last_day(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 9, 30))
-        assert deadline == date(2026, 10, 10)
-
-    def test_decadal_february(self, ereporter_monthly: EReporter) -> None:
-        # Février 2026 a 28 jours
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 2, 20))
-        assert deadline == date(2026, 2, 28)
-
-    def test_decadal_december_rollover(self, ereporter_monthly: EReporter) -> None:
-        deadline = ereporter_monthly.next_transaction_deadline(date(2026, 12, 31))
-        assert deadline == date(2027, 1, 10)
+    @pytest.mark.parametrize(
+        ("from_date", "expected"),
+        [
+            (date(2026, 9, 1), date(2026, 9, 10)),
+            (date(2026, 9, 10), date(2026, 9, 20)),
+            (date(2026, 9, 15), date(2026, 9, 20)),
+            (date(2026, 9, 20), date(2026, 9, 30)),
+            (date(2026, 9, 25), date(2026, 9, 30)),
+            (date(2026, 9, 30), date(2026, 10, 10)),
+            # Février 2026 a 28 jours
+            (date(2026, 2, 20), date(2026, 2, 28)),
+            (date(2026, 12, 31), date(2027, 1, 10)),
+        ],
+        ids=[
+            "from_day_1",
+            "from_day_10",
+            "from_day_15",
+            "from_day_20",
+            "from_day_25",
+            "from_last_day",
+            "february",
+            "december_rollover",
+        ],
+    )
+    def test_decadal_deadline(
+        self, ereporter_monthly: EReporter, from_date: date, expected: date
+    ) -> None:
+        assert ereporter_monthly.next_transaction_deadline(from_date) == expected
 
     # --- Transactions : "mensuel" ---
 
-    def test_monthly_from_mid_month(self, ereporter_franchise: EReporter) -> None:
-        deadline = ereporter_franchise.next_transaction_deadline(date(2026, 9, 15))
-        assert deadline == date(2026, 10, 31)
-
-    def test_monthly_from_last_day(self, ereporter_franchise: EReporter) -> None:
-        deadline = ereporter_franchise.next_transaction_deadline(date(2026, 9, 30))
-        assert deadline == date(2026, 10, 31)
-
-    def test_monthly_december_rollover(self, ereporter_franchise: EReporter) -> None:
-        deadline = ereporter_franchise.next_transaction_deadline(date(2026, 12, 15))
-        assert deadline == date(2027, 1, 31)
+    @pytest.mark.parametrize(
+        ("from_date", "expected"),
+        [
+            (date(2026, 9, 15), date(2026, 10, 31)),
+            (date(2026, 9, 30), date(2026, 10, 31)),
+            (date(2026, 12, 15), date(2027, 1, 31)),
+        ],
+        ids=["from_mid_month", "from_last_day", "december_rollover"],
+    )
+    def test_monthly_deadline(
+        self, ereporter_franchise: EReporter, from_date: date, expected: date
+    ) -> None:
+        assert ereporter_franchise.next_transaction_deadline(from_date) == expected
 
     # --- Paiements ---
 
@@ -506,8 +490,6 @@ class TestNextDeadlines:
         deadline = ereporter_monthly.next_payment_deadline(date(2026, 9, 15))
         assert deadline == date(2026, 10, 31)
 
-    def test_payment_deadline_franchise_none(
-        self, ereporter_franchise: EReporter
-    ) -> None:
+    def test_payment_deadline_franchise_none(self, ereporter_franchise: EReporter) -> None:
         deadline = ereporter_franchise.next_payment_deadline(date(2026, 9, 15))
         assert deadline is None

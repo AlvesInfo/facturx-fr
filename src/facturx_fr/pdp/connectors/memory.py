@@ -160,53 +160,11 @@ class MemoryPDP(BasePDP):
         if filters is None:
             filters = InvoiceSearchFilters()
 
-        results: list[InvoiceSearchResult] = []
-
-        for stored in self._invoices.values():
-            inv = stored.invoice
-            status = stored.lifecycle.status
-
-            # Filtrage par statut
-            if filters.status is not None and status != filters.status:
-                continue
-
-            # Filtrage par date
-            if filters.date_from is not None and inv.issue_date < filters.date_from:
-                continue
-            if filters.date_to is not None and inv.issue_date > filters.date_to:
-                continue
-
-            # Filtrage par SIREN vendeur
-            if (
-                filters.seller_siren is not None
-                and inv.seller.siren != filters.seller_siren
-            ):
-                continue
-
-            # Filtrage par SIREN acheteur
-            if (
-                filters.buyer_siren is not None
-                and inv.buyer.siren != filters.buyer_siren
-            ):
-                continue
-
-            # Filtrage par direction
-            if filters.direction is not None and stored.direction != filters.direction:
-                continue
-
-            results.append(
-                InvoiceSearchResult(
-                    invoice_id=stored.invoice_id,
-                    number=inv.number,
-                    issue_date=inv.issue_date,
-                    seller_name=inv.seller.name,
-                    buyer_name=inv.buyer.name,
-                    total_incl_tax=inv.total_incl_tax,
-                    currency=inv.currency,
-                    status=status,
-                    direction=stored.direction,
-                )
-            )
+        results = [
+            self._to_search_result(stored)
+            for stored in self._invoices.values()
+            if self._matches_filters(stored, filters)
+        ]
 
         # Pagination
         total_count = len(results)
@@ -219,6 +177,36 @@ class MemoryPDP(BasePDP):
             total_count=total_count,
             page=filters.page,
             page_size=filters.page_size,
+        )
+
+    @staticmethod
+    def _matches_filters(stored: _StoredInvoice, filters: InvoiceSearchFilters) -> bool:
+        """Indique si une facture stockée satisfait tous les filtres de recherche."""
+        inv = stored.invoice
+        # Un filtre à None est ignoré ; sinon sa condition doit être vraie
+        return (
+            (filters.status is None or stored.lifecycle.status == filters.status)
+            and (filters.date_from is None or inv.issue_date >= filters.date_from)
+            and (filters.date_to is None or inv.issue_date <= filters.date_to)
+            and (filters.seller_siren is None or inv.seller.siren == filters.seller_siren)
+            and (filters.buyer_siren is None or inv.buyer.siren == filters.buyer_siren)
+            and (filters.direction is None or stored.direction == filters.direction)
+        )
+
+    @staticmethod
+    def _to_search_result(stored: _StoredInvoice) -> InvoiceSearchResult:
+        """Convertit une facture stockée en résultat de recherche."""
+        inv = stored.invoice
+        return InvoiceSearchResult(
+            invoice_id=stored.invoice_id,
+            number=inv.number,
+            issue_date=inv.issue_date,
+            seller_name=inv.seller.name,
+            buyer_name=inv.buyer.name,
+            total_incl_tax=inv.total_incl_tax,
+            currency=inv.currency,
+            status=stored.lifecycle.status,
+            direction=stored.direction,
         )
 
     # --- Mise à jour de statut ---
@@ -303,9 +291,7 @@ class MemoryPDP(BasePDP):
             submitted_at=now,
         )
 
-    async def get_ereporting_status(
-        self, submission_id: str
-    ) -> EReportingSubmissionResponse:
+    async def get_ereporting_status(self, submission_id: str) -> EReportingSubmissionResponse:
         """Récupère le statut d'une soumission e-reporting."""
         stored = self._ereporting.get(submission_id)
         if stored is None:

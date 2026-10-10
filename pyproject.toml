@@ -51,11 +51,17 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio",
     "pytest-django",
+    "pytest-cov",
     "django>=5.2",
     "ruff",
     "mypy",
     "saxonche>=12.0",
 ]
+
+# Groupe installé par défaut par `uv sync` / `uv run` (PEP 735).
+# Référence l'extra `dev` pour ne pas dupliquer la liste.
+[dependency-groups]
+dev = ["facturx-fr[dev]"]
 
 [project.scripts]
 facturx-generate = "facturx_fr.cli:generate"

@@ -58,25 +58,17 @@ class TestTransactionData:
     def test_computed_total_incl_tax(self, sample_transaction: TransactionData) -> None:
         assert sample_transaction.total_incl_tax == Decimal("120.00")
 
-    def test_siren_validation_too_short(self) -> None:
+    @pytest.mark.parametrize("siren", ["12345", "12345678A"], ids=["too_short", "non_numeric"])
+    def test_siren_validation(self, siren: str) -> None:
+        kwargs = {
+            "seller_siren": siren,
+            "transaction_type": EReportingTransactionType.B2C_DOMESTIC,
+            "invoice_date": date(2026, 9, 15),
+            "operation_category": OperationCategory.DELIVERY,
+            "total_excl_tax": Decimal("100.00"),
+        }
         with pytest.raises(ValidationError, match="seller_siren"):
-            TransactionData(
-                seller_siren="12345",
-                transaction_type=EReportingTransactionType.B2C_DOMESTIC,
-                invoice_date=date(2026, 9, 15),
-                operation_category=OperationCategory.DELIVERY,
-                total_excl_tax=Decimal("100.00"),
-            )
-
-    def test_siren_validation_non_numeric(self) -> None:
-        with pytest.raises(ValidationError, match="seller_siren"):
-            TransactionData(
-                seller_siren="12345678A",
-                transaction_type=EReportingTransactionType.B2C_DOMESTIC,
-                invoice_date=date(2026, 9, 15),
-                operation_category=OperationCategory.DELIVERY,
-                total_excl_tax=Decimal("100.00"),
-            )
+            TransactionData(**kwargs)
 
     def test_auto_transaction_id(self) -> None:
         t1 = TransactionData(
@@ -97,9 +89,7 @@ class TestTransactionData:
         )
         assert t1.transaction_id != t2.transaction_id
 
-    def test_with_country_code(
-        self, sample_international_transaction: TransactionData
-    ) -> None:
+    def test_with_country_code(self, sample_international_transaction: TransactionData) -> None:
         assert sample_international_transaction.country_code == "DE"
         assert sample_international_transaction.transaction_type == (
             EReportingTransactionType.B2B_INTRA_EU
@@ -121,32 +111,26 @@ class TestPaymentData:
         assert sample_payment.cashed_amount == Decimal("120.00")
         assert sample_payment.invoice_reference == "FA-2026-042"
 
-    def test_cashed_amount_must_be_positive(self) -> None:
-        with pytest.raises(ValidationError, match="cashed_amount"):
-            PaymentData(
-                seller_siren="123456789",
-                cashing_date=date(2026, 10, 1),
-                cashed_amount=Decimal("0"),
-                invoice_reference="FA-001",
-            )
-
-    def test_cashed_amount_negative(self) -> None:
-        with pytest.raises(ValidationError, match="cashed_amount"):
-            PaymentData(
-                seller_siren="123456789",
-                cashing_date=date(2026, 10, 1),
-                cashed_amount=Decimal("-10.00"),
-                invoice_reference="FA-001",
-            )
-
-    def test_invoice_reference_non_empty(self) -> None:
-        with pytest.raises(ValidationError, match="invoice_reference"):
-            PaymentData(
-                seller_siren="123456789",
-                cashing_date=date(2026, 10, 1),
-                cashed_amount=Decimal("100.00"),
-                invoice_reference="",
-            )
+    @pytest.mark.parametrize(
+        ("cashed_amount", "invoice_reference", "expected_field"),
+        [
+            ("0", "FA-001", "cashed_amount"),
+            ("-10.00", "FA-001", "cashed_amount"),
+            ("100.00", "", "invoice_reference"),
+        ],
+        ids=["amount_zero", "amount_negative", "reference_empty"],
+    )
+    def test_invalid_payment(
+        self, cashed_amount: str, invoice_reference: str, expected_field: str
+    ) -> None:
+        kwargs = {
+            "seller_siren": "123456789",
+            "cashing_date": date(2026, 10, 1),
+            "cashed_amount": Decimal(cashed_amount),
+            "invoice_reference": invoice_reference,
+        }
+        with pytest.raises(ValidationError, match=expected_field):
+            PaymentData(**kwargs)
 
     def test_auto_payment_id(self) -> None:
         p1 = PaymentData(
@@ -171,38 +155,31 @@ class TestAggregatedTransactionData:
         assert sample_aggregated.seller_siren == "123456789"
         assert len(sample_aggregated.tax_breakdowns) == 2
 
-    def test_computed_total_excl_tax(
-        self, sample_aggregated: AggregatedTransactionData
-    ) -> None:
+    def test_computed_total_excl_tax(self, sample_aggregated: AggregatedTransactionData) -> None:
         assert sample_aggregated.total_excl_tax == Decimal("1500.00")
 
-    def test_computed_total_vat(
-        self, sample_aggregated: AggregatedTransactionData
-    ) -> None:
+    def test_computed_total_vat(self, sample_aggregated: AggregatedTransactionData) -> None:
         assert sample_aggregated.total_vat == Decimal("227.50")
 
-    def test_computed_total_incl_tax(
-        self, sample_aggregated: AggregatedTransactionData
-    ) -> None:
+    def test_computed_total_incl_tax(self, sample_aggregated: AggregatedTransactionData) -> None:
         assert sample_aggregated.total_incl_tax == Decimal("1727.50")
 
     def test_min_one_breakdown(self) -> None:
+        kwargs = {
+            "seller_siren": "123456789",
+            "period_start": date(2026, 9, 1),
+            "period_end": date(2026, 9, 30),
+            "operation_category": OperationCategory.DELIVERY,
+            "tax_breakdowns": [],
+        }
         with pytest.raises(ValidationError, match="tax_breakdowns"):
-            AggregatedTransactionData(
-                seller_siren="123456789",
-                period_start=date(2026, 9, 1),
-                period_end=date(2026, 9, 30),
-                operation_category=OperationCategory.DELIVERY,
-                tax_breakdowns=[],
-            )
+            AggregatedTransactionData(**kwargs)
 
 
 class TestEReportingSubmission:
     """Tests du modèle EReportingSubmission."""
 
-    def test_individual_with_transaction(
-        self, sample_transaction: TransactionData
-    ) -> None:
+    def test_individual_with_transaction(self, sample_transaction: TransactionData) -> None:
         sub = EReportingSubmission(
             transmission_mode=EReportingTransmissionMode.INDIVIDUAL,
             transaction_data=sample_transaction,
@@ -212,9 +189,7 @@ class TestEReportingSubmission:
         assert sub.aggregated_data is None
         assert sub.payment_data is None
 
-    def test_aggregated_with_data(
-        self, sample_aggregated: AggregatedTransactionData
-    ) -> None:
+    def test_aggregated_with_data(self, sample_aggregated: AggregatedTransactionData) -> None:
         sub = EReportingSubmission(
             transmission_mode=EReportingTransmissionMode.AGGREGATED,
             aggregated_data=sample_aggregated,

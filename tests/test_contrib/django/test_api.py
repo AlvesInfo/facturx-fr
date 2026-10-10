@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+from unittest.mock import patch
 
 import pytest
 from django.test import Client, override_settings
@@ -314,3 +315,94 @@ class TestValidateXML:
         """Sans XML : 400."""
         response = client.post("/validate/", {}, **auth)
         assert response.status_code == 400
+
+
+class TestAPIEdgeCases:
+    """Chemins d'erreur moins courants de l'API."""
+
+    def test_explicit_true_boolean(self, client, auth, invoice_json, pdf_bytes):
+        """Une valeur vraie explicite active la validation."""
+        response = client.post(
+            "/generate/",
+            {
+                "invoice": invoice_json,
+                "pdf": io.BytesIO(pdf_bytes),
+                "validate": "oui",
+                "output": "json",
+            },
+            **auth,
+        )
+        assert response.status_code == 200, response.content
+        assert response.json()["validated"] is True
+
+    def test_invalid_boolean(self, client, auth, invoice_json, pdf_bytes):
+        """Un booléen non reconnu renvoie 400."""
+        response = client.post(
+            "/generate/",
+            {"invoice": invoice_json, "pdf": io.BytesIO(pdf_bytes), "validate": "peut-être"},
+            **auth,
+        )
+        assert response.status_code == 400
+        assert "booléenne" in response.json()["error"]
+
+    def test_unreadable_json(self, client, auth, pdf_bytes):
+        """Une ValueError hors Pydantic est renvoyée en 'JSON illisible'."""
+        with patch(
+            "facturx_fr.contrib.django.api_views.Invoice.model_validate_json",
+            side_effect=ValueError("boom"),
+        ):
+            response = client.post(
+                "/generate/", {"invoice": "{}", "pdf": io.BytesIO(pdf_bytes)}, **auth
+            )
+        assert response.status_code == 400
+        assert "JSON illisible" in response.json()["error"]
+
+    def test_invalid_pdf_base64(self, client, auth, invoice_json):
+        """Un champ pdf_base64 mal encodé renvoie 400."""
+        response = client.post(
+            "/generate/", {"invoice": invoice_json, "pdf_base64": "%%pas-du-base64%%"}, **auth
+        )
+        assert response.status_code == 400
+        assert "pdf_base64" in response.json()["error"]
+
+    def test_generated_xml_fails_validation(self, client, auth, invoice_json, pdf_bytes):
+        """Des erreurs de validation du XML généré renvoient 422."""
+        with patch("facturx_fr.contrib.django.api_views.validate_xml", return_value=["BR-01 KO"]):
+            response = client.post(
+                "/generate/", {"invoice": invoice_json, "pdf": io.BytesIO(pdf_bytes)}, **auth
+            )
+        assert response.status_code == 422
+        assert response.json()["details"] == ["BR-01 KO"]
+
+    def test_facturx_generation_failure(self, client, auth, invoice_json, pdf_bytes):
+        """Une exception de la lib factur-x renvoie 500."""
+        with patch(
+            "facturx_fr.contrib.django.api_views.FacturXGenerator.generate",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = client.post(
+                "/generate/",
+                {"invoice": invoice_json, "pdf": io.BytesIO(pdf_bytes), "validate": "0"},
+                **auth,
+            )
+        assert response.status_code == 500
+        assert "Échec de la génération" in response.json()["error"]
+
+    def test_unexpected_error_is_500(self, client, auth):
+        """Une erreur imprévue est convertie en 500 générique."""
+        with patch(
+            "facturx_fr.contrib.django.api_views.check_api_key",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = client.get("/health/", **auth)
+        assert response.status_code == 500
+        assert response.json()["error"] == "Erreur interne du serveur."
+
+    def test_validate_xml_as_form_field(self, client, auth, invoice_json):
+        """Le XML peut être transmis dans un champ texte de formulaire."""
+        xml = client.post(
+            "/generate-xml/", invoice_json, content_type="application/json", **auth
+        ).content
+        response = client.post("/validate/", {"xml": xml.decode("utf-8")}, **auth)
+        assert response.status_code == 200
+        assert response.json()["valid"] is True

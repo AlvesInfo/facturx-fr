@@ -155,9 +155,7 @@ class TestCDARGenerator:
         root = etree.fromstring(xml_bytes)
 
         guideline = root.find(
-            "rsm:ExchangedDocumentContext/"
-            "ram:GuidelineSpecifiedDocumentContextParameter/"
-            "ram:ID",
+            "rsm:ExchangedDocumentContext/ram:GuidelineSpecifiedDocumentContextParameter/ram:ID",
             NS,
         )
         assert guideline is not None
@@ -203,9 +201,7 @@ class TestCDARGenerator:
         xml_bytes = gen.generate_xml(sample_cdar_message)
         root = etree.fromstring(xml_bytes)
 
-        recipients = root.findall(
-            "rsm:ExchangedDocument/ram:RecipientTradeParty", NS
-        )
+        recipients = root.findall("rsm:ExchangedDocument/ram:RecipientTradeParty", NS)
         assert len(recipients) == 1
 
         recip_id = recipients[0].find("ram:ID", NS)
@@ -233,9 +229,7 @@ class TestCDARGenerator:
         # Pas de motif pour APPROUVEE
         assert ack.find("ram:ReasonInformation", NS) is None
 
-    def test_acknowledgement_no_amount_by_default(
-        self, sample_cdar_message: CDARMessage
-    ) -> None:
+    def test_acknowledgement_no_amount_by_default(self, sample_cdar_message: CDARMessage) -> None:
         """Vérifie l'absence de SpecifiedAmount par défaut."""
         gen = CDARGenerator()
         xml_bytes = gen.generate_xml(sample_cdar_message)
@@ -308,9 +302,7 @@ class TestCDARMultipleRecipients:
         xml_bytes = gen.generate_xml(msg)
         root = etree.fromstring(xml_bytes)
 
-        recipients = root.findall(
-            "rsm:ExchangedDocument/ram:RecipientTradeParty", NS
-        )
+        recipients = root.findall("rsm:ExchangedDocument/ram:RecipientTradeParty", NS)
         assert len(recipients) == 2
 
         roles = [r.find("ram:RoleCode", NS).text for r in recipients]
@@ -434,24 +426,25 @@ class TestCDARParser:
         parsed = parser.parse(xml_bytes)
         assert parsed.amount == Decimal("9500.00")
 
-    def test_parse_invalid_xml(self) -> None:
-        """Vérifie qu'un XML invalide lève une exception."""
-        parser = CDARParser()
-        with pytest.raises(Exception):
-            parser.parse(b"<invalid>xml</invalid>")
-
-    def test_parse_missing_exchanged_document(self) -> None:
+    @pytest.mark.parametrize(
+        "xml",
+        [
+            b"<invalid>xml</invalid>",
+            (
+                b'<?xml version="1.0"?>'
+                b"<rsm:CrossDomainAcknowledgementAndResponse"
+                b" xmlns:rsm="
+                b'"urn:un:unece:uncefact:data:standard:CrossDomainAcknowledgementAndResponse:100"'
+                b" xmlns:ram="
+                b'"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"'
+                b">"
+                b"</rsm:CrossDomainAcknowledgementAndResponse>"
+            ),
+        ],
+        ids=["unrelated_root", "empty_cdar_root"],
+    )
+    def test_parse_missing_exchanged_document(self, xml: bytes) -> None:
         """Vérifie qu'un XML sans ExchangedDocument lève ValueError."""
-        xml = (
-            b'<?xml version="1.0"?>'
-            b"<rsm:CrossDomainAcknowledgementAndResponse"
-            b" xmlns:rsm="
-            b'"urn:un:unece:uncefact:data:standard:CrossDomainAcknowledgementAndResponse:100"'
-            b" xmlns:ram="
-            b'"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"'
-            b">"
-            b"</rsm:CrossDomainAcknowledgementAndResponse>"
-        )
         parser = CDARParser()
         with pytest.raises(ValueError, match="ExchangedDocument manquant"):
             parser.parse(xml)

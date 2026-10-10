@@ -24,6 +24,8 @@ def pytest_configure() -> None:
             INSTALLED_APPS=[
                 "django.contrib.contenttypes",
                 "django.contrib.auth",
+                "django.contrib.messages",
+                "django.contrib.admin",
                 "facturx_fr.contrib.django",
             ],
             DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
@@ -112,3 +114,22 @@ def sample_invoice(db, sample_pydantic_invoice):
     from facturx_fr.contrib.django.models import Invoice
 
     return Invoice.create_with_lines(sample_pydantic_invoice)
+
+
+@pytest.fixture
+def media_root(tmp_path, settings):
+    """Fixture : répertoire MEDIA_ROOT temporaire pour les FileField."""
+    settings.MEDIA_ROOT = str(tmp_path)
+    return tmp_path
+
+
+@pytest.fixture
+def invoice_with_xml(sample_invoice, media_root):
+    """Fixture : facture Django avec un fichier XML CII sauvegardé."""
+    from django.core.files.base import ContentFile
+
+    from facturx_fr.generators.cii import CIIGenerator
+
+    xml_bytes = CIIGenerator().generate_xml(sample_invoice.to_pydantic())
+    sample_invoice.xml_file.save(f"{sample_invoice.number}.xml", ContentFile(xml_bytes), save=True)
+    return sample_invoice
