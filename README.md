@@ -96,6 +96,27 @@ print(f"Facture {invoice.number} — Total TTC : {invoice.total_incl_tax} EUR")
 | UBL       | XML pur           | OASIS UBL    | Implémenté   |
 | CII       | XML pur           | UN/CEFACT    | Implémenté   |
 
+## Serveur API (micro-service Factur-X)
+
+Pour les applications qui ne peuvent pas installer `facturx-fr` dans leur propre
+environnement (ancienne version de Python, Pydantic v1, autre langage), la lib fournit
+une **API HTTP stateless** à monter dans un projet Django dédié :
+
+```python
+# urls.py
+path("facturx/", include("facturx_fr.contrib.django.api_urls")),
+```
+
+Le client envoie la facture en JSON et son PDF, et reçoit le PDF Factur-X :
+
+```bash
+curl -H "Authorization: Bearer $FACTURX_API_KEY" \
+     -F "invoice=@facture.json" -F "pdf=@facture.pdf" \
+     https://facturx.example.com/facturx/generate/ -o facture_facturx.pdf
+```
+
+Voir [docs/api_server.md](docs/api_server.md).
+
 ## Documentation
 
 - [Guide de démarrage](docs/getting_started.md)

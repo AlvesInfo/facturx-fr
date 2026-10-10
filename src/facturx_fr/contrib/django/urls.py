@@ -1,6 +1,6 @@
 """Configuration des URLs Django pour la facturation électronique."""
 
-from django.urls import path
+from django.urls import include, path
 
 from facturx_fr.contrib.django.views import (
     CheckStatusView,
@@ -13,6 +13,8 @@ from facturx_fr.contrib.django.views import (
 app_name = "facturx_fr"
 
 urlpatterns = [
+    # API stateless (génération Factur-X / XML, validation)
+    path("api/", include("facturx_fr.contrib.django.api_urls")),
     path(
         "<int:invoice_id>/generate-xml/",
         GenerateXMLView.as_view(),

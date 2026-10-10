@@ -23,6 +23,11 @@ DEFAULTS: dict[str, object] = {
     "PDP_BASE_URL": None,
     "DEFAULT_PROFILE": "EN16931",
     "DEFAULT_CURRENCY": "EUR",
+    # API HTTP stateless (facturx_fr.contrib.django.api_urls)
+    "API_KEYS": (),  # clés acceptées (Authorization: Bearer / X-API-Key)
+    "API_ALLOW_ANONYMOUS": False,  # autoriser l'accès sans clé (dev uniquement)
+    "API_VALIDATE_DEFAULT": True,  # valider le XML avant embarquement
+    "API_MAX_UPLOAD_SIZE": 25 * 1024 * 1024,  # taille max PDF / JSON / XML (octets)
 }
 
 
